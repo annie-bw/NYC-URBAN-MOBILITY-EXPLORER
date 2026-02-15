@@ -1,2 +1,36 @@
+# Large CSV files (don't push to GitHub)
+*.csv
+cleaned_trips.csv
+cleaned_trips_copy.csv
+taxi_zone_lookup.csv
+
+# Environment variables
 .env
-database/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
