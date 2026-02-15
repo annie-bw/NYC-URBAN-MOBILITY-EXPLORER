@@ -8,6 +8,7 @@ database/cleaned_trips.csv
 database/taxi_zone_lookup.csv
 # Environment variables
 .env
+database/.env
 
 # Python
 __pycache__/
