@@ -22,5 +22,24 @@ export const getTopRoutes = async () => {
     }
 };
 
-
-
+export const getHeatmapData = async () => {
+    try {
+        const query = `
+            SELECT 
+                z.borough,
+                EXTRACT(HOUR FROM t.pickup_datetime)::INT AS hour,
+                COUNT(*)::INT AS trip_count,
+                SUM(t.passenger_count)::INT AS passenger_count
+            FROM trips t
+            JOIN zones z ON t.pickup_zone_id = z.zone_id
+            GROUP BY z.borough, hour
+            ORDER BY z.borough, hour;
+        `;
+        const { rows } = await pool.query(query);
+        console.log(rows.slice(0,50));
+        return rows;
+    } catch (error) {
+        console.error('Error fetching heatmap data', error.stack);
+        throw error;
+    }
+};
