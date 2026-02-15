@@ -1,0 +1,20 @@
+{
+    "sqltools.connections": [
+        {
+            "pgOptions": {
+                "ssl": {
+                    "rejectUnauthorized": false
+                }
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "spirit-ayeaye-22038.j77.aws-ap-south-1.cockroachlabs.cloud",
+            "port": 26257,
+            "driver": "CockroachDB",
+            "name": "NYC Mobility",
+            "database": "nyc-mobility-explorer",
+            "username": "bwiza",
+            "password": "2UWlVGjWWf2YDNqOZBIy9Q"
+        }
+    ]
+}
