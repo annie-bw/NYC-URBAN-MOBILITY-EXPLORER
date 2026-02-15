@@ -1,11 +1,3 @@
-"""
-NYC Taxi Database Population - OPTIMIZED FOR SPEED
-==================================================
-This version is MUCH faster - uses larger batches and optimized settings.
-
-Expected time: 20-30 minutes total (not hours!)
-"""
-
 import psycopg2
 from psycopg2.extras import execute_values
 import csv
@@ -13,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 
-print("=== NYC TAXI DATABASE POPULATION (OPTIMIZED) ===")
+print("=== NYC TAXI DATABASE POPULATION ===")
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -25,7 +17,7 @@ ZONES_FILE = os.path.join(BASE_DIR, "taxi_zone_lookup.csv")
 TRIPS_FILE = os.path.join(BASE_DIR, "cleaned_trips_copy.csv")
 
 # ============================================================================
-# FEATURE CALCULATION FUNCTIONS
+# DERIVED FEATURES CALCULATION FUNCTIONS
 # ============================================================================
 
 def calculate_tip_percentage(tip_amount: float, fare_amount: float) -> float:
@@ -63,16 +55,16 @@ def get_day_type(pickup: datetime) -> str:
 # ============================================================================
 
 try:
-    # Connect with optimized settings
+    # DATABASE Connection
     conn = psycopg2.connect(DATABASE_URL)
-    conn.set_session(autocommit=False)  # Manual transaction control
+    conn.set_session(autocommit=False)
     cursor = conn.cursor()
     print("✓ Connected to CockroachDB")
 
     # -------------------------
-    # Step 1: Run schema.sql
+    # Run schema.sql
     # -------------------------
-    print("\n📋 Step 1: Running schema.sql...")
+    print("\n Step 1: Running schema.sql...")
 
     if not os.path.exists(SCHEMA_FILE):
         print(f"❌ schema.sql not found at: {SCHEMA_FILE}")
@@ -86,9 +78,9 @@ try:
     print("✓ Tables created")
 
     # -------------------------
-    # Step 2: Load zones
+    # Load zones
     # -------------------------
-    print("\n📥 Step 2: Loading zones...")
+    print("\n Step 2: Loading zones...")
 
     with open(ZONES_FILE, "r") as f:
         cursor.copy_expert("""
@@ -102,13 +94,10 @@ try:
     print(f"✓ Loaded {zone_count} zones")
 
     # -------------------------
-    # Step 3: Load trips FAST with execute_values
+    # Step 3: Load trips
     # -------------------------
-    print(f"\n📥 Step 3: Loading trips (OPTIMIZED)...")
-    print("⏳ Using large batches for speed...")
-
-    # MUCH LARGER BATCH SIZE for speed
-    batch_size = 50000  # 5x larger!
+    print(f"\n Step 3: Loading trips ...")
+    batch_size = 50000
     batch_data = []
     total_inserted = 0
 
@@ -116,6 +105,7 @@ try:
         reader = csv.DictReader(f)
 
         for row in reader:
+            #clean data to load in the db
             try:
                 batch_data.append((
                     row['pickup_datetime'] or None,
@@ -141,7 +131,7 @@ try:
             except Exception as e:
                 continue  # Skip bad rows silently
 
-            # Insert batch when full - using execute_values (FASTER!)
+            # Insert batch when full - using execute_values
             if len(batch_data) >= batch_size:
                 execute_values(cursor, """
                     INSERT INTO trips (
@@ -177,12 +167,12 @@ try:
     print(f"✓ Total trips loaded: {trip_count:,}")
 
     # -------------------------
-    # Step 4: Populate derived features (OPTIMIZED)
+    #  Populate derived features
     # -------------------------
-    print(f"\n🔄 Step 4: Calculating derived features...")
-    print("⏳ Using large batches for speed...")
+    print(f"\n Step 4: Calculating derived features...")
 
-    batch_size = 50000  # Larger batches
+
+    batch_size = 50000
     offset = 0
     processed = 0
 
@@ -222,7 +212,7 @@ try:
                 get_day_type(pickup)
             ))
 
-        # Insert features with execute_values (FASTER!)
+        # Insert features with execute_values
         execute_values(cursor, """
             INSERT INTO derived_features (
                 trip_id,
@@ -247,9 +237,9 @@ try:
     print(f"✓ Calculated {feature_count:,} derived features")
 
     # -------------------------
-    # Step 5: Run indexes.sql
+    # Run indexes.sql
     # -------------------------
-    print("\n📇 Step 5: Creating indexes...")
+    print(f"\n Step 5: Creating indexes from indexes.sql...")
 
     if os.path.exists(INDEXES_FILE):
         with open(INDEXES_FILE, 'r') as f:
@@ -258,7 +248,6 @@ try:
                 if statement.strip():
                     cursor.execute(statement)
             conn.commit()
-        print("✓ Indexes created from indexes.sql")
     else:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trips_pickup ON trips(pickup_datetime);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trips_dropoff ON trips(dropoff_datetime);")
@@ -273,46 +262,12 @@ try:
     # Verification
     # -------------------------
     print("\n" + "=" * 60)
-    print("✅ DATABASE POPULATION COMPLETE!")
+    print(" DATABASE POPULATION COMPLETE!")
     print("=" * 60)
-    print(f"📊 Zones: {zone_count:,}")
-    print(f"📊 Trips: {trip_count:,}")
-    print(f"📊 Derived Features: {feature_count:,}")
+    print(f" Zones: {zone_count:,}")
+    print(f"Trips: {trip_count:,}")
+    print(f" Derived Features: {feature_count:,}")
 
-    # Test a sample query
-    print("\n🧪 Testing sample query...")
-    cursor.execute("""
-        SELECT
-            t.trip_id,
-            t.fare_amount,
-            df.tip_percentage,
-            df.trip_duration_minutes,
-            df.time_of_day,
-            df.trip_speed_mph,
-            df.day_type
-        FROM trips t
-        JOIN derived_features df ON t.trip_id = df.trip_id
-        LIMIT 1;
-    """)
-
-    sample = cursor.fetchone()
-    if sample:
-        print("✅ Sample trip:")
-        print(f"   Trip ID: {sample[0]}")
-        print(f"   Fare: ${sample[1]:.2f}")
-        print(f"   Tip: {sample[2]:.1f}%")
-        print(f"   Duration: {sample[3]:.1f} min")
-        print(f"   Time: {sample[4]}")
-        print(f"   Speed: {sample[5]:.1f} mph")
-        print(f"   Day: {sample[6]}")
-
-    print("\n" + "=" * 60)
-    print("🎉 READY TO USE!")
-    print("=" * 60)
-    print("\n📝 Next steps:")
-    print("1. Test the API: python api_hybrid.py")
-    print("2. Verify: curl http://localhost:8000/status")
-    print("\n✅ You now have 5GB storage with all features!")
 
 except Exception as e:
     conn.rollback()
