@@ -1,5 +1,5 @@
 import express from 'express';
-import { getTopRoutes, getHeatmapData } from './queries.js';
+import { getTopRoutes, getHeatmapData, getCityOverview } from './queries.js';
 
 const router = express.Router();
 
@@ -49,6 +49,16 @@ router.get('/heatmap', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch heatmap data' });
+    }
+});
+
+router.get("/results", async (req, res) => {
+    try {
+        const overview = await getCityOverview();
+        res.json(overview);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch results' });
     }
 });
 

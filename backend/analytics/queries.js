@@ -36,10 +36,27 @@ export const getHeatmapData = async () => {
             ORDER BY z.borough, hour;
         `;
         const { rows } = await pool.query(query);
-        console.log(rows.slice(0,50));
         return rows;
     } catch (error) {
         console.error('Error fetching heatmap data', error.stack);
+        throw error;
+    }
+};
+
+export const getCityOverview = async () => {
+    try {
+        const query = `
+            SELECT 
+                COUNT(*)::INT AS total_trips,
+                ROUND(AVG(fare_amount)::NUMERIC, 2)::FLOAT AS average_fare,
+                ROUND(AVG(trip_distance)::NUMERIC, 2)::FLOAT AS average_distance,
+                ROUND(AVG(passenger_count)::NUMERIC, 2)::FLOAT AS average_passenger_count
+            FROM trips;
+        `;
+        const { rows } = await pool.query(query);
+        return rows[0];
+    } catch (error) {
+        console.error('Error fetching city overview', error.stack);
         throw error;
     }
 };
