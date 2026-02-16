@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NYC Urban Mobility Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem("nycDashboardTheme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p>Loading data...</p>
+  </div>
+
+  <header class="header">
+    <h1>NYC Urban Mobility Dashboard</h1>
+    <div class="header-actions">
+      <span class="theme-label">Theme</span>
+      <button type="button" id="themeToggle" class="theme-toggle" aria-label="Toggle theme">Light</button>
+    </div>
+  </header>
+
+  <div class="dashboard-wrapper">
+    <!-- Sidebar toggle for mobile -->
+    <button type="button" id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle filters">Filters</button>
+
+    <aside id="sidebar" class="sidebar">
+      <h2 class="sidebar-title">Filters</h2>
+
+      <div class="filter-group">
+        <label for="startDate">From</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="filter-group">
+        <label for="endDate">To</label>
+        <input type="date" id="endDate">
+      </div>
+
+      <div class="filter-group">
+        <label>Borough</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="borough-Manhattan" name="borough" value="Manhattan"> Manhattan</label>
+          <label><input type="checkbox" id="borough-Brooklyn" name="borough" value="Brooklyn"> Brooklyn</label>
+          <label><input type="checkbox" id="borough-Queens" name="borough" value="Queens"> Queens</label>
+          <label><input type="checkbox" id="borough-Bronx" name="borough" value="Bronx"> Bronx</label>
+          <label><input type="checkbox" id="borough-StatenIsland" name="borough" value="Staten Island"> Staten Island</label>
+        </div>
+        <small>City area (pick one or more)</small>
+      </div>
+
+      <div class="filter-group">
+        <label for="zoneSelect">Zones</label>
+        <select id="zoneSelect" multiple size="5">
+        </select>
+        <small>Specific locations (e.g. airports). Hold Ctrl to select multiple.</small>
+      </div>
+
+      <div class="filter-group">
+        <label for="fareRange">Fare range: $<span id="fareValue">0</span> - $200</label>
+        <input type="range" id="fareRange" min="0" max="200" value="0">
+      </div>
+
+      <div class="filter-group">
+        <label>Time of day</label>
+        <div class="time-buttons">
+          <button type="button" class="time-btn" data-time="early">Early Morning</button>
+          <button type="button" class="time-btn" data-time="morning">Morning Rush</button>
+          <button type="button" class="time-btn" data-time="midday">Midday</button>
+          <button type="button" class="time-btn" data-time="evening">Evening Rush</button>
+          <button type="button" class="time-btn" data-time="night">Night</button>
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button type="button" id="applyFilters" class="btn btn-primary">Apply Filters</button>
+        <button type="button" id="clearFilters" class="btn btn-secondary">Clear All</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div id="apiErrorMessage" class="error-message hidden"></div>
+      <!-- Summary cards row -->
+      <section class="summary-cards">
+        <div class="card">
+          <h3>Total Trips</h3>
+          <p id="totalTrips" class="card-value">0</p>
+        </div>
+        <div class="card">
+          <h3>Average Fare</h3>
+          <p id="avgFare" class="card-value">$0</p>
+        </div>
+        <div class="card">
+          <h3>Average Distance</h3>
+          <p id="avgDistance" class="card-value">0 mi</p>
+        </div>
+      </section>
+
+      <!-- Charts row -->
+      <section class="charts-row">
+        <div class="chart-container">
+          <h3>Top 10 Routes</h3>
+          <canvas id="routesChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Trips Over Time</h3>
+          <canvas id="timeSeriesChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Heatmap -->
+      <section class="heatmap-section">
+        <h3>Zone vs Hour (busy = dark)</h3>
+        <div class="heatmap-wrapper">
+          <table id="heatmap" class="heatmap">
+            <thead>
+              <tr id="heatmapHeader"></tr>
+            </thead>
+            <tbody id="heatmapBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Zone stats cards -->
+      <section class="zone-stats">
+        <h3>Selected Zone Statistics</h3>
+        <div class="summary-cards">
+          <div class="card">
+            <h3>Average Fare (zone)</h3>
+            <p id="zoneAvgFare" class="card-value">$0</p>
+          </div>
+          <div class="card">
+            <h3>Average Distance (zone)</h3>
+            <p id="zoneAvgDistance" class="card-value">0 mi</p>
+          </div>
+          <div class="card">
+            <h3>Total Trips (zone)</h3>
+            <p id="zoneTotalTrips" class="card-value">0</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trip details table -->
+      <section class="table-section">
+        <h3>Trip Details</h3>
+        <div class="table-wrapper">
+          <table id="tripsTable" class="trips-table">
+            <thead>
+              <tr>
+                <th data-sort="time">Time</th>
+                <th data-sort="from">From</th>
+                <th data-sort="to">To</th>
+                <th data-sort="fare">Fare</th>
+                <th data-sort="passengers">Passengers</th>
+              </tr>
+            </thead>
+            <tbody id="tripsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/filters.js"></script>
+  <script src="js/summary-cards.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
