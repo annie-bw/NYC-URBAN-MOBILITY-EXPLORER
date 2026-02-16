@@ -1,5 +1,5 @@
-import { mergeSort } from './mergeSort.js';
-import { computeMean, computeStdDev } from './computeStdDevHelpers.js';
+import { selectionSort } from './selectionSort.js';
+import { computeMean, computeStdDev } from './compuStdDev.js';
 
 function detectSpeedAnomalies(trips) {
     // Extract speed values
@@ -44,11 +44,11 @@ function detectSpeedAnomalies(trips) {
         }
     }
 
-    // Sort anomalies (worst offenders first)
+    // Sort anomalies by |zScore| descending
     for (let i = 0; i < anomalies.length; i++) {
-        anomalies[i]._sortKey = -Math.abs(anomalies[i].zScore);
+        anomalies[i]._sortKey = Math.abs(anomalies[i].zScore);
     }
-    const sorted = mergeSort(anomalies, '_sortKey');
+    const sorted = selectionSort(anomalies, '_sortKey');
     // Clean up the temporary sort key
     for (let i = 0; i < sorted.length; i++) {
         delete sorted[i]._sortKey;
@@ -67,7 +67,7 @@ function detectSpeedAnomalies(trips) {
 
 
 function detectFareAnomalies(trips) {
-    // Group trips by pickup_zone_id — manual bucketing
+    // Group trips by pickup_zone_id
     const zoneGroups = {};
     for (let i = 0; i < trips.length; i++) {
         const trip = trips[i];
@@ -111,7 +111,7 @@ function detectFareAnomalies(trips) {
             upperBound: parseFloat((mean + 2 * stdDev).toFixed(2))
         };
 
-        // Skip zones with near-zero std dev (all fares are identical)
+        // Skip zones with near-zero std dev
         if (stdDev < 0.01) continue;
 
         // Flag anomalies
@@ -146,9 +146,9 @@ function detectFareAnomalies(trips) {
 
     // Sort anomalies by |zScore| descending
     for (let i = 0; i < anomalies.length; i++) {
-        anomalies[i]._sortKey = -Math.abs(anomalies[i].zScore);
+        anomalies[i]._sortKey = Math.abs(anomalies[i].zScore);
     }
-    const sorted = mergeSort(anomalies, '_sortKey');
+    const sorted = selectionSort(anomalies, '_sortKey');
     for (let i = 0; i < sorted.length; i++) {
         delete sorted[i]._sortKey;
     }
