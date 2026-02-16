@@ -1,5 +1,6 @@
 import express from 'express';
-import { getTopRoutes, getHeatmapData, getCityOverview } from './queries.js';
+import { getTopRoutes, getHeatmapData, getCityOverview, getAnomalies } from './queries.js';
+import { detectAnomalies } from './algorithms/anomalyDetector.js';
 
 const router = express.Router();
 
@@ -61,5 +62,17 @@ router.get("/results", async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch results' });
     }
 });
+
+router.get('/anomalies', async (req, res) => {
+    try {
+        const rawTrips = await getAnomalies();
+        const anomalyReport = detectAnomalies(rawTrips);
+        res.json(anomalyReport);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to detect anomalies' });
+    }
+});
+
 
 export default router;
