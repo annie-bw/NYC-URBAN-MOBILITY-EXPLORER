@@ -1,5 +1,5 @@
-import { selectionSort } from "./selectionSort.js";
-import { computeMean, computeStdDev } from "./computeStdDev.js";
+const { selectionSort } = require("./selectionSort");
+const { computeMean, computeStdDev } = require("./computeStdDev");
 
 function detectSpeedAnomalies(trips) {
   // Extract speed values
@@ -155,7 +155,7 @@ function detectFareAnomalies(trips) {
   return { anomalies: sorted, zoneThresholds };
 }
 
-export function detectAnomalies(trips) {
+function detectAnomalies(trips) {
   const speedResult = detectSpeedAnomalies(trips);
   const fareResult = detectFareAnomalies(trips);
 
@@ -193,3 +193,5 @@ export function detectAnomalies(trips) {
     },
   };
 }
+
+module.exports = { detectAnomalies };

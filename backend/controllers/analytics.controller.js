@@ -15,13 +15,43 @@ const getTopRoutes = async (req, res, next) => {
 
 const getHeatMap = async (req, res, next) => {
   try {
-    const data = await analyticsService.getHeatMap();
-    res.status(200).json({
-      success: true,
-      data,
+    const dbData = await analyticsService.getHeatMap();
+    const zonesMap = {};
+
+    // transform sql query results to formated zone-hour data
+    dbData.forEach((row) => {
+      const { borough, hour, trip_count, passenger_count } = row;
+
+      if (!zonesMap[borough]) {
+        zonesMap[borough] = {
+          name: borough,
+          hours: {},
+        };
+
+        // Initialize all 24 hours
+        for (let h = 0; h < 24; h++) {
+          zonesMap[borough].hours[h] = {
+            trips: 0,
+            passengers: 0,
+            activityScore: 0,
+          };
+        }
+      }
+
+      const activityScore = Number(trip_count) + Number(passenger_count);
+
+      zonesMap[borough].hours[hour] = {
+        trips: Number(trip_count),
+        passengers: Number(passenger_count),
+        activityScore: activityScore,
+      };
     });
+
+    const result = Object.values(zonesMap);
+    res.json(result);
   } catch (error) {
-    next(error);
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch heatmap data" });
   }
 };
 
@@ -63,9 +93,9 @@ const getZoneStats = async (req, res, next) => {
   }
 };
 
-const getAnomalies = async (req, res, next) => {
+const getCityOverview = async (req, res, next) => {
   try {
-    const data = await analyticsService.getAnomalies();
+    const data = await analyticsService.getCityOverview();
     res.status(200).json({
       success: true,
       data,
@@ -81,5 +111,5 @@ module.exports = {
   getCustomFilters,
   getHeatMap,
   getTimeSeries,
-  getAnomalies,
+  getCityOverview,
 };

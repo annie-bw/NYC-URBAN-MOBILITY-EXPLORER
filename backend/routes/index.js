@@ -7,8 +7,10 @@ const {
   getZoneStats,
   getTimeSeries,
   getCustomFilters,
-  getAnomalies,
+  getCityOverview,
 } = require("../controllers/analytics.controller");
+
+const { getAnomalies } = require("../controllers/anomalies.controller");
 
 const { getAllTrips, getAllZones } = require("../controllers/data.controller");
 const { validateZoneId } = require("../middleware/validateRequest");
@@ -21,5 +23,6 @@ router.get("/analytics/zone-stats", validateZoneId, getZoneStats);
 router.get("/analytics/time-series", getTimeSeries);
 router.post("/analytics/custom-filter", getCustomFilters);
 router.get("/analytics/anomalies", getAnomalies);
+router.get("/analytics/city-overview", getCityOverview);
 
 module.exports = router;
