@@ -198,10 +198,18 @@
     };
   }
 
+  // Shorten long route labels so they fit in the chart; full text shows in tooltip
+  function shortenRouteLabel(route, maxLen) {
+    maxLen = maxLen || 20;
+    var s = String(route).replace(/\s*-\s*/g, " → ");
+    if (s.length <= maxLen) return s;
+    return s.slice(0, maxLen - 1) + "…";
+  }
+
   // Update bar chart and line chart with new route and time-series data
   function updateCharts(tripsData, topRoutes, timeSeries) {
     var colors = getChartThemeColors();
-    var routeLabels = topRoutes.map(function (r) { return r.route; });
+    var routeLabels = topRoutes.map(function (r) { return shortenRouteLabel(r.route); });
     var routeValues = topRoutes.map(function (r) { return r.trips; });
     var routesCtx = document.getElementById("routesChart").getContext("2d");
     if (routesChart) routesChart.destroy();
@@ -213,6 +221,19 @@
       },
       options: {
         indexAxis: "y",
+        layout: {
+          padding: { left: 12, right: 8, top: 4, bottom: 4 }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: function (items) {
+                var idx = items[0] && items[0].dataIndex;
+                return idx >= 0 && topRoutes[idx] ? topRoutes[idx].route : "";
+              }
+            }
+          }
+        },
         scales: {
           x: {
             beginAtZero: true,
@@ -220,7 +241,10 @@
             ticks: { color: colors.scaleText },
             grid: { color: colors.grid }
           },
-          y: { ticks: { color: colors.scaleText }, grid: { color: colors.grid } }
+          y: {
+            ticks: { color: colors.scaleText, maxWidth: 140, autoSkip: false },
+            grid: { color: colors.grid }
+          }
         },
         responsive: true,
         maintainAspectRatio: true
@@ -562,7 +586,8 @@
           topRoutes: topRoutes,
           timeSeries: timeSeries,
           heatmap: heatmapData,
-          cityOverview: summary
+          cityOverview: summary,
+          dataSource: "api"
         });
         showLoading(false);
       }).catch(function () {
@@ -624,22 +649,28 @@
         trips: filtered,
         topRoutes: topRoutes,
         timeSeries: timeSeries,
-        heatmap: heatmapData
+        heatmap: heatmapData,
+        dataSource: "mock"
       });
     }, 400);
+  }
+
+  function setDataSourceBadge(source) {
+    var el = document.getElementById("dataSourceBadge");
+    if (!el) return;
+    el.textContent = source === "api" ? "Live data" : "Demo data";
+    el.className = "data-source-badge " + (source === "api" ? "live" : "demo");
   }
 
   function applyFiltersAndRefresh() {
     var filters = getFilters();
     fetchData(filters, function (data) {
       lastChartData = data;
-      // Summary cards: prefer city overview (full DB); else compute from filtered trips
+      setDataSourceBadge(data.dataSource);
+      // Summary cards: city overview (object) uses updateCards; trips (array) uses updateSummaryCards
       if (data.cityOverview) {
-        updateSummaryCards({
-          totalTrips: data.cityOverview.totalTrips,
-          avgFare: data.cityOverview.avgFare,
-          avgDistance: data.cityOverview.avgDistance
-        });
+        if (window.updateCards) window.updateCards(data.cityOverview);
+        else updateSummaryCards(data.trips);
       } else {
         updateSummaryCards(data.trips);
       }

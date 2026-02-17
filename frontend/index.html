@@ -29,6 +29,7 @@
   <header class="header">
     <h1>NYC Urban Mobility Dashboard</h1>
     <div class="header-actions">
+      <span id="dataSourceBadge" class="data-source-badge" title="Live = data from your backend/DB; Demo = mock data">—</span>
       <span class="theme-label">Theme</span>
       <button type="button" id="themeToggle" class="theme-toggle" aria-label="Toggle theme">Light</button>
     </div>
@@ -114,11 +115,17 @@
       <section class="charts-row">
         <div class="chart-container">
           <h3>Top 10 Routes</h3>
-          <canvas id="routesChart"></canvas>
+          <p class="chart-hint">Pickup zone → Dropoff zone. Hover a bar to see the full route name.</p>
+          <div class="chart-wrap">
+            <canvas id="routesChart"></canvas>
+          </div>
         </div>
         <div class="chart-container">
           <h3>Trips Over Time</h3>
-          <canvas id="timeSeriesChart"></canvas>
+          <p class="chart-hint">Daily trip count over time.</p>
+          <div class="chart-wrap">
+            <canvas id="timeSeriesChart"></canvas>
+          </div>
         </div>
       </section>
 

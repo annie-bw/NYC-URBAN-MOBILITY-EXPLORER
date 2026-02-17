@@ -6,7 +6,8 @@
 (function () {
   "use strict";
 
-  var API_BASE = "";
+  // Point to backend; use "" only if the same server serves both frontend and API
+  var API_BASE = "http://localhost:5000";
 
   /**
    * Show a short, friendly error message on the page.

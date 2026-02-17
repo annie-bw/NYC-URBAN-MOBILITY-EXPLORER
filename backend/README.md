@@ -15,6 +15,14 @@ Create a `.env` file in the `backend` directory with the following:
 DATABASE_URL=your_postgresql_url
 ```
 
+**CockroachDB Cloud:** Use the exact connection string from the console (Connect → Connection string). If you get "password authentication failed", run:
+
+```bash
+node test-db-connection.js
+```
+
+Then in CockroachDB Cloud: **SQL Users** → your user → **Reset password**, copy the new password into `DATABASE_URL` in `.env`, and run the test again until it prints "OK – Connection works".
+
 ### Installation
 
 ```bash
