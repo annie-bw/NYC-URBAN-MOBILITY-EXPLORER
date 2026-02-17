@@ -1,19 +1,13 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { createIndexes } from './db.js';
-import analyticsRoute from './analytics/analyticsRoute.js';
+require("dotenv").config();
 
-// Load environment variables
-dotenv.config();
-
+const express = require("express");
+const cors = require("cors");
+const routes = require("./routes");
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(cors());
+app.use(express.json());
+app.use("/api", routes);
+const errorHandler = require("./middleware/errorHandler");
+app.use(errorHandler);
 
-// Initialize db indexes
-createIndexes();
-
-app.use('/api/analytics', analyticsRoute);
-
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.listen(5000, () => console.log("Server running on port 5000"));
