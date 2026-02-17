@@ -1,8 +1,6 @@
 # NYC Urban Mobility Explorer - Backend
 
-This is the backend API for the NYC Urban Mobility Explorer, built with Node.js, Express, and PostgreSQL.
-
-## 🚀 Getting Started
+This is the backend API for the NYC Urban Mobility Explorer, built with Node.js, Express, and PostgreSQL.## 🚀 Getting Started
 
 ### Prerequisites
 
