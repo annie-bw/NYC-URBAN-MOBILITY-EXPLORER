@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Large CSV files (don't push to GitHub)
+=======
+# Large CSV files
+>>>>>>> backend-samuel
 *.csv
 cleaned_trips.csv
 cleaned_trips_copy.csv
@@ -6,6 +10,10 @@ taxi_zone_lookup.csv
 database/cleaned_trips_copy.csv
 database/cleaned_trips.csv
 database/taxi_zone_lookup.csv
+<<<<<<< HEAD
+=======
+
+>>>>>>> backend-samuel
 # Environment variables
 .env
 database/.env
@@ -37,3 +45,6 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node modules
+node_modules/
