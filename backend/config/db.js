@@ -6,9 +6,17 @@ const pool = new Pool({
 
 const createIndexes = async () => {
   try {
-    const query =
-      "CREATE INDEX IF NOT EXISTS idx_trips_route ON trips (pickup_zone_id, dropoff_zone_id)";
-    await pool.query(query);
+    const queries = [
+      "CREATE INDEX IF NOT EXISTS idx_trips_route ON trips (pickup_zone_id, dropoff_zone_id)",
+      "CREATE INDEX IF NOT EXISTS idx_trips_pickup_datetime ON trips (pickup_datetime)",
+      "CREATE INDEX IF NOT EXISTS idx_trips_fare_amount ON trips (fare_amount)",
+      "CREATE INDEX IF NOT EXISTS idx_trips_trip_distance ON trips (trip_distance)",
+      "CREATE INDEX IF NOT EXISTS idx_trips_dropoff_zone_id ON trips (dropoff_zone_id)",
+      "CREATE INDEX IF NOT EXISTS idx_trips_passenger_count ON trips (passenger_count)",
+    ];
+    for (const query of queries) {
+      await pool.query(query);
+    }
     console.log("Indexes created successfully");
   } catch (error) {
     console.error("Error creating indexes", error.stack);
@@ -16,14 +24,4 @@ const createIndexes = async () => {
   }
 };
 
-pool
-  .connect()
-  .then(() => {
-    console.log(" Connected to PostgreSQL");
-
-    // initialize db indexes
-    createIndexes();
-  })
-  .catch((err) => console.error("DB connection error:", err));
-
-module.exports = pool;
+module.exports = { pool, createIndexes };

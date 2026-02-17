@@ -1,4 +1,4 @@
-const pool = require("../config/db");
+const { pool } = require("../config/db");
 const { buildTripsQuery } = require("../utils/queryBuilder");
 
 const getTrips = async (filters = {}, limit, offset) => {
@@ -52,5 +52,5 @@ module.exports = {
   getTrips,
   getTripsCount,
   getZones,
-  getZoneById
+  getZoneById,
 };

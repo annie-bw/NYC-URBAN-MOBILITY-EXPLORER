@@ -10,4 +10,19 @@ app.use("/api", routes);
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+const { createIndexes } = require("./config/db");
+
+const startServer = async () => {
+  try {
+    console.log("Initializing database...");
+    await createIndexes();
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
