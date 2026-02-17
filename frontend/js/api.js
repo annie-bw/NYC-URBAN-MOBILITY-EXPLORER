@@ -1,6 +1,6 @@
 /**
- * API service: fetch trips and zones from backend.
- * Handles errors with user-friendly messages.
+ * API service: fetches data from backend endpoints.
+ * Human-friendly errors; all calls return promises.
  */
 
 (function () {
@@ -9,7 +9,7 @@
   var API_BASE = "";
 
   /**
-   * Show a user-friendly error message on the page.
+   * Show a short, friendly error message on the page.
    */
   function handleError(error) {
     var msg = "Something went wrong. Please try again.";
@@ -122,8 +122,7 @@
 
   /**
    * Fetch anomaly report from GET /api/analytics/anomalies.
-   * Returns summary of speed and fare anomalies (Z-Score method).
-   * Use silent=true to avoid showing error when backend is down (e.g. optional panel).
+   * Use silent=true to avoid showing error when backend is down.
    */
   function fetchAnomalies(silent) {
     var url = API_BASE + "/api/analytics/anomalies";
@@ -139,10 +138,97 @@
       });
   }
 
+  /**
+   * Fetch top routes from GET /api/analytics/top-routes.
+   * Returns pickup/dropoff zone ids and trip counts.
+   */
+  function fetchTopRoutes() {
+    return fetch(API_BASE + "/api/analytics/top-routes")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
+  /**
+   * Fetch heat map (borough by hour) from GET /api/analytics/heat-map.
+   */
+  function fetchHeatMap() {
+    return fetch(API_BASE + "/api/analytics/heat-map")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
+  /**
+   * Fetch daily trip counts from GET /api/analytics/time-series.
+   */
+  function fetchTimeSeries() {
+    return fetch(API_BASE + "/api/analytics/time-series")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
+  /**
+   * Fetch city-wide stats from GET /api/analytics/city-overview.
+   */
+  function fetchCityOverview() {
+    return fetch(API_BASE + "/api/analytics/city-overview")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
+  /**
+   * Fetch stats for one zone from GET /api/analytics/zone-stats?zone_id=X.
+   */
+  function fetchZoneStats(zoneId) {
+    var url = API_BASE + "/api/analytics/zone-stats?zone_id=" + encodeURIComponent(zoneId);
+    return fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
   window.fetchTrips = fetchTrips;
   window.fetchZones = fetchZones;
   window.fetchDateRange = fetchDateRange;
   window.fetchAnomalies = fetchAnomalies;
+  window.fetchTopRoutes = fetchTopRoutes;
+  window.fetchHeatMap = fetchHeatMap;
+  window.fetchTimeSeries = fetchTimeSeries;
+  window.fetchCityOverview = fetchCityOverview;
+  window.fetchZoneStats = fetchZoneStats;
   window.handleError = handleError;
   window.hideError = hideError;
 })();

@@ -23,20 +23,24 @@
     if (btn) btn.textContent = theme === "dark" ? "Light" : "Dark";
   }
 
-  // Mock data; replace with fetch(/api/trips), fetch(/api/analytics/time-series), fetch(/api/analytics/top-routes)
-  var zones = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island", "JFK", "LaGuardia", "Newark"];
+  // Zone list for heatmap; filled from API or fallback boroughs
+  var zoneNamesForHeatmap = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
+  var zoneLookup = {};
+  var zoneIdToBorough = {};
+  var zonesList = [];
 
   function randomInRange(min, max) {
     return Math.round(min + Math.random() * (max - min));
   }
 
   function generateMockTrips(count) {
+    var mockZones = zoneNamesForHeatmap.concat(["JFK", "LaGuardia", "Newark"]);
     var trips = [];
     var baseDate = new Date("2024-01-01");
     for (var i = 0; i < count; i++) {
-      var fromZone = zones[randomInRange(0, zones.length - 1)];
-      var toZone = zones[randomInRange(0, zones.length - 1)];
-      if (fromZone === toZone) toZone = zones[(zones.indexOf(fromZone) + 1) % zones.length];
+      var fromZone = mockZones[randomInRange(0, mockZones.length - 1)];
+      var toZone = mockZones[randomInRange(0, mockZones.length - 1)];
+      if (fromZone === toZone) toZone = mockZones[(mockZones.indexOf(fromZone) + 1) % mockZones.length];
       var hour = randomInRange(0, 23);
       var d = new Date(baseDate);
       d.setDate(d.getDate() + randomInRange(0, 30));
@@ -81,7 +85,7 @@
 
   function buildHeatmapData(tripsData) {
     var zoneHours = {};
-    zones.forEach(function (z) {
+    zoneNamesForHeatmap.forEach(function (z) {
       zoneHours[z] = [];
       for (var h = 0; h < 24; h++) zoneHours[z].push(0);
     });
@@ -91,31 +95,86 @@
     return zoneHours;
   }
 
+  // Map raw trip from API to normalized format for table and filters
+  function normalizeTrip(raw, lookup) {
+    var pickup = raw.pickup_datetime || raw.time;
+    var dropoff = raw.dropoff_datetime || raw.time;
+    var pickupDate = pickup ? new Date(pickup) : null;
+    var durationMins = null;
+    if (pickupDate && dropoff) {
+      durationMins = Math.round((new Date(dropoff) - pickupDate) / 60000);
+    }
+    return {
+      time: pickup,
+      from: lookup[raw.pickup_zone_id] || "?",
+      to: lookup[raw.dropoff_zone_id] || "?",
+      fare: raw.fare_amount != null ? raw.fare_amount : raw.fare,
+      passengers: raw.passenger_count != null ? raw.passenger_count : raw.passengers || 1,
+      hour: pickupDate ? pickupDate.getHours() : 0,
+      distance: raw.trip_distance != null ? raw.trip_distance : raw.distance,
+      duration: raw.trip_duration_minutes != null ? raw.trip_duration_minutes : durationMins,
+      trip_duration_minutes: raw.trip_duration_minutes != null ? raw.trip_duration_minutes : durationMins,
+      pickup_zone_id: raw.pickup_zone_id,
+      dropoff_zone_id: raw.dropoff_zone_id
+    };
+  }
+
+  // Convert backend heat map (borough + hours) to our grid format
+  function heatMapFromApi(apiRows) {
+    var zoneHours = {};
+    zoneNamesForHeatmap.forEach(function (z) {
+      zoneHours[z] = [];
+      for (var h = 0; h < 24; h++) zoneHours[z].push(0);
+    });
+    if (!apiRows || !Array.isArray(apiRows)) return zoneHours;
+    apiRows.forEach(function (row) {
+      var name = row.name;
+      if (!zoneHours[name]) zoneHours[name] = Array(24).fill(0);
+      for (var h = 0; h < 24; h++) {
+        var cell = row.hours && row.hours[h];
+        zoneHours[name][h] = cell ? (cell.trips || 0) : 0;
+      }
+    });
+    return zoneHours;
+  }
+
   // Use getFilterValues from filters.js
   function getFilters() {
     return window.getFilterValues ? window.getFilterValues() : { startDate: null, endDate: null, boroughs: [], selectedZones: [], fareMin: 0, selectedTime: null };
   }
 
-  // Filter trips based on date range, boroughs, zones, fare, and time of day
+  // Filter trips: date range, boroughs, zone ids, fare, time of day
   function filterTrips(tripsData, filters) {
     var result = tripsData.slice();
+    var timeStr = function (t) { return (t.time || "").toString().slice(0, 10); };
     if (filters.startDate) {
-      result = result.filter(function (t) { return t.time.slice(0, 10) >= filters.startDate; });
+      result = result.filter(function (t) { return timeStr(t) >= filters.startDate; });
     }
     if (filters.endDate) {
-      result = result.filter(function (t) { return t.time.slice(0, 10) <= filters.endDate; });
+      result = result.filter(function (t) { return timeStr(t) <= filters.endDate; });
     }
     if (filters.boroughs && filters.boroughs.length > 0) {
       result = result.filter(function (t) {
+        if (t.pickup_zone_id != null && zoneIdToBorough[t.pickup_zone_id]) {
+          if (filters.boroughs.indexOf(zoneIdToBorough[t.pickup_zone_id]) !== -1) return true;
+        }
+        if (t.dropoff_zone_id != null && zoneIdToBorough[t.dropoff_zone_id]) {
+          if (filters.boroughs.indexOf(zoneIdToBorough[t.dropoff_zone_id]) !== -1) return true;
+        }
         return filters.boroughs.indexOf(t.from) !== -1 || filters.boroughs.indexOf(t.to) !== -1;
       });
     }
     if (filters.selectedZones && filters.selectedZones.length > 0) {
+      var zoneIds = filters.selectedZones.map(function (v) { return parseInt(v, 10); });
+      var validIds = zoneIds.filter(function (n) { return !isNaN(n); });
       result = result.filter(function (t) {
+        if (validIds.length && (t.pickup_zone_id != null || t.dropoff_zone_id != null)) {
+          return validIds.indexOf(t.pickup_zone_id) !== -1 || validIds.indexOf(t.dropoff_zone_id) !== -1;
+        }
         return filters.selectedZones.indexOf(t.from) !== -1 || filters.selectedZones.indexOf(t.to) !== -1;
       });
     }
-    result = result.filter(function (t) { return t.fare >= (filters.fareMin || 0); });
+    result = result.filter(function (t) { return (t.fare || 0) >= (filters.fareMin || 0); });
     if (filters.selectedTime) {
       var ranges = { early: [0, 5], morning: [5, 10], midday: [10, 16], evening: [16, 21], night: [21, 24] };
       var r = ranges[filters.selectedTime];
@@ -205,7 +264,7 @@
     // Find min and max trip counts across all cells
     var minVal = Infinity;
     var maxVal = -Infinity;
-    zones.forEach(function (z) {
+    zoneNamesForHeatmap.forEach(function (z) {
       zoneHours[z].forEach(function (v) {
         if (v < minVal) minVal = v;
         if (v > maxVal) maxVal = v;
@@ -257,8 +316,8 @@
       gridEl.appendChild(headerCell);
     }
 
-    // Rows 1-8: zone name + 24 data cells (background color only)
-    zones.forEach(function (z) {
+    // Rows: borough name + 24 data cells (background color only)
+    zoneNamesForHeatmap.forEach(function (z) {
       var zoneCell = document.createElement("div");
       zoneCell.className = "heatmap-cell heatmap-zone-cell";
       zoneCell.textContent = z;
@@ -289,20 +348,47 @@
     }
   }
 
-  function updateZoneStats(tripsData, filters) {
-    var zoneTrips = tripsData;
-    var selected = (filters.boroughs && filters.boroughs.length > 0) ? filters.boroughs : (filters.selectedZones || []);
-    if (selected.length > 0) {
-      zoneTrips = tripsData.filter(function (t) {
-        return selected.indexOf(t.from) !== -1 || selected.indexOf(t.to) !== -1;
-      });
+  // Zone stats: fetch from API when a zone is selected; else use filtered trips or zeros
+  function updateZoneStatsFromFilters(filters) {
+    var firstZoneId = (filters.selectedZones && filters.selectedZones[0]) ? filters.selectedZones[0] : null;
+    if (firstZoneId && window.fetchZoneStats) {
+      window.fetchZoneStats(firstZoneId)
+        .then(function (res) {
+          var rows = (res && res.data) || [];
+          var row = rows[0];
+          var total = row ? (row.total_trips || 0) : 0;
+          var avgFare = row && row.avg_fare != null ? "$" + Number(row.avg_fare).toFixed(2) : "$0";
+          var avgDist = row && row.avg_distance != null ? Number(row.avg_distance).toFixed(1) + " mi" : "0 mi";
+          setZoneStatsEls(avgFare, avgDist, total);
+        })
+        .catch(function () {
+          setZoneStatsEls("$0", "0 mi", 0);
+        });
+    } else {
+      var trips = lastChartData ? lastChartData.trips : [];
+      var zoneTrips = trips;
+      var selected = (filters.boroughs && filters.boroughs.length > 0) ? filters.boroughs : [];
+      if (selected.length > 0) {
+        zoneTrips = trips.filter(function (t) {
+          var pb = zoneIdToBorough[t.pickup_zone_id];
+          var db = zoneIdToBorough[t.dropoff_zone_id];
+          return selected.indexOf(pb) !== -1 || selected.indexOf(db) !== -1;
+        });
+      }
+      var total = zoneTrips.length;
+      var avgFare = total ? "$" + (zoneTrips.reduce(function (s, t) { return s + (t.fare || 0); }, 0) / total).toFixed(2) : "$0";
+      var avgDist = total ? (zoneTrips.reduce(function (s, t) { return s + (t.distance || 0); }, 0) / total).toFixed(1) + " mi" : "0 mi";
+      setZoneStatsEls(avgFare, avgDist, total);
     }
-    var total = zoneTrips.length;
-    var avgFare = total ? (zoneTrips.reduce(function (s, t) { return s + t.fare; }, 0) / total).toFixed(2) : "0";
-    var avgDist = total ? (zoneTrips.reduce(function (s, t) { return s + (t.distance || 0); }, 0) / total).toFixed(1) : "0";
-    document.getElementById("zoneAvgFare").textContent = "$" + avgFare;
-    document.getElementById("zoneAvgDistance").textContent = avgDist + " mi";
-    document.getElementById("zoneTotalTrips").textContent = total;
+  }
+
+  function setZoneStatsEls(avgFare, avgDist, total) {
+    var fa = document.getElementById("zoneAvgFare");
+    var ad = document.getElementById("zoneAvgDistance");
+    var tt = document.getElementById("zoneTotalTrips");
+    if (fa) fa.textContent = avgFare;
+    if (ad) ad.textContent = avgDist;
+    if (tt) tt.textContent = total;
   }
 
   var currentTrips = [];
@@ -391,34 +477,138 @@
     if (show) el.classList.remove("hidden"); else el.classList.add("hidden");
   }
 
-  // Fetch data: try API first, fall back to mock
+  // Load zones once and build lookups; populate zone dropdown
+  function loadZonesAndLookups(cb) {
+    if (!window.fetchZones) {
+      cb();
+      return;
+    }
+    window.fetchZones()
+      .then(function (res) {
+        var rows = res.data || res || [];
+        zonesList = rows;
+        zoneLookup = {};
+        zoneIdToBorough = {};
+        rows.forEach(function (z) {
+          var id = z.zone_id;
+          var name = z.zone_name || z.borough || String(id);
+          zoneLookup[id] = name;
+          zoneIdToBorough[id] = z.borough || name;
+        });
+        populateZoneSelect(rows);
+        cb();
+      })
+      .catch(function () {
+        cb();
+      });
+  }
+
+  function populateZoneSelect(zones) {
+    var sel = document.getElementById("zoneSelect");
+    if (!sel) return;
+    sel.innerHTML = "";
+    (zones || []).forEach(function (z) {
+      var opt = document.createElement("option");
+      opt.value = z.zone_id;
+      opt.textContent = z.zone_name || z.borough || z.zone_id;
+      sel.appendChild(opt);
+    });
+  }
+
+  // Fetch all backend data; fall back to mock if any critical call fails
   function fetchData(filters, callback) {
     showLoading(true);
-    if (window.fetchTrips) {
-      window.fetchTrips(1, 500, filters)
-        .then(function (apiData) {
-          var trips = Array.isArray(apiData) ? apiData : (apiData.trips || []);
-          var filtered = filterTrips(trips, filters);
-          var topRoutes = buildTopRoutesFromTrips(filtered);
-          var timeSeries = buildTimeSeriesFromTrips(filtered);
-          var heatmapData = buildHeatmapData(filtered);
-          var dateRange = getDateRangeFromTrips(trips);
-          if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
-          callback({ trips: filtered, topRoutes: topRoutes, timeSeries: timeSeries, heatmap: heatmapData });
+    loadZonesAndLookups(function () {
+      var hasApi = window.fetchTrips && window.fetchTopRoutes && window.fetchHeatMap && window.fetchTimeSeries && window.fetchCityOverview;
+      if (!hasApi) {
+        useMockData(filters, function (d) {
+          callback(d);
           showLoading(false);
-        })
-        .catch(function () {
-          useMockData(filters, function (data) {
-            callback(data);
+        });
+        return;
+      }
+      Promise.all([
+        window.fetchTrips(1, 500, filters).catch(function () { return null; }),
+        window.fetchTopRoutes().catch(function () { return null; }),
+        window.fetchHeatMap().catch(function () { return null; }),
+        window.fetchTimeSeries().catch(function () { return null; }),
+        window.fetchCityOverview().catch(function () { return null; })
+      ]).then(function (results) {
+        var tripsRes = results[0];
+        var topRoutesRes = results[1];
+        var heatMapRes = results[2];
+        var timeSeriesRes = results[3];
+        var cityOverviewRes = results[4];
+        var usedBackend = tripsRes && topRoutesRes && heatMapRes && timeSeriesRes;
+        if (!usedBackend) {
+          useMockData(filters, function (d) {
+            callback(d);
             showLoading(false);
           });
+          return;
+        }
+        hideError();
+        var rawTrips = (tripsRes.data || tripsRes) || [];
+        var trips = rawTrips.map(function (t) { return normalizeTrip(t, zoneLookup); });
+        var filtered = filterTrips(trips, filters);
+        var topRoutes = topRoutesFromApi(topRoutesRes, zoneLookup);
+        var heatmapData = heatMapFromApi(heatMapRes);
+        var timeSeries = timeSeriesFromApi(timeSeriesRes);
+        var dateRange = dateRangeFromTimeSeries(timeSeries);
+        if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
+        var summary = cityOverviewFromApi(cityOverviewRes);
+        callback({
+          trips: filtered,
+          topRoutes: topRoutes,
+          timeSeries: timeSeries,
+          heatmap: heatmapData,
+          cityOverview: summary
         });
-    } else {
-      useMockData(filters, function (data) {
-        callback(data);
         showLoading(false);
+      }).catch(function () {
+        useMockData(filters, function (d) {
+          callback(d);
+          showLoading(false);
+        });
       });
-    }
+    });
+  }
+
+  function topRoutesFromApi(res, lookup) {
+    var rows = (res && res.data) || [];
+    return rows.slice(0, 10).map(function (r) {
+      var from = lookup[r.pickup_zone_id] || "Zone " + r.pickup_zone_id;
+      var to = lookup[r.dropoff_zone_id] || "Zone " + r.dropoff_zone_id;
+      return { route: from + " - " + to, trips: r.trip_count || 0 };
+    });
+  }
+
+  function timeSeriesFromApi(res) {
+    var rows = (res && res.data) || [];
+    return rows.map(function (r) {
+      var day = r.day;
+      if (day && typeof day.toISOString === "function") day = day.toISOString().slice(0, 10);
+      return { day: String(day || ""), trips: r.trip_count || 0 };
+    }).sort(function (a, b) { return a.day.localeCompare(b.day); });
+  }
+
+  function dateRangeFromTimeSeries(ts) {
+    if (!ts || ts.length === 0) return null;
+    var days = ts.map(function (d) { return d.day; }).filter(Boolean);
+    if (days.length === 0) return null;
+    days.sort();
+    return { minDate: days[0], maxDate: days[days.length - 1] };
+  }
+
+  function cityOverviewFromApi(res) {
+    var rows = (res && res.data) || [];
+    var row = rows[0];
+    if (!row) return null;
+    return {
+      totalTrips: row.total_trips || 0,
+      avgFare: row.average_fare != null ? "$" + Number(row.average_fare).toFixed(2) : "$0",
+      avgDistance: row.average_distance != null ? Number(row.average_distance).toFixed(1) + " mi" : "0 mi"
+    };
   }
 
   function useMockData(filters, callback) {
@@ -443,10 +633,19 @@
     var filters = getFilters();
     fetchData(filters, function (data) {
       lastChartData = data;
-      updateSummaryCards(data.trips);
+      // Summary cards: prefer city overview (full DB); else compute from filtered trips
+      if (data.cityOverview) {
+        updateSummaryCards({
+          totalTrips: data.cityOverview.totalTrips,
+          avgFare: data.cityOverview.avgFare,
+          avgDistance: data.cityOverview.avgDistance
+        });
+      } else {
+        updateSummaryCards(data.trips);
+      }
       updateCharts(data.trips, data.topRoutes, data.timeSeries);
       updateHeatmap(data.heatmap);
-      updateZoneStats(data.trips, filters);
+      updateZoneStatsFromFilters(filters);
       updateTable(data.trips);
     });
   }
@@ -547,15 +746,7 @@
     applyTheme(getStoredTheme());
 
     document.getElementById("themeToggle").addEventListener("click", toggleTheme);
-
-    // Populate zone dropdown
-    var zoneSelect = document.getElementById("zoneSelect");
-    zones.forEach(function (z) {
-      var opt = document.createElement("option");
-      opt.value = z;
-      opt.textContent = z;
-      zoneSelect.appendChild(opt);
-    });
+    // Zone dropdown is filled when we load zones from API (in fetchData)
 
     document.getElementById("fareRange").addEventListener("input", function () {
       document.getElementById("fareValue").textContent = this.value;
@@ -578,14 +769,8 @@
     bindTableSort();
     initAnomalyPanel();
 
-    // Set date filter range from API if available (dates in DB only)
-    if (window.fetchDateRange) {
-      window.fetchDateRange().then(function (range) {
-        if (range && range.minDate && range.maxDate) setDateRange(range.minDate, range.maxDate);
-      });
-    }
-
-    // Initial load with no filters
+    // Date range is set from time-series data when we load (dates that exist in DB)
+    // Initial load
     applyFiltersAndRefresh();
   }
 
