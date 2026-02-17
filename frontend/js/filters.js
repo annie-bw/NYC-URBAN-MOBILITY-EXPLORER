@@ -1,7 +1,5 @@
-/**
- * Filter panel: reads form values and exposes getFilterValues().
- * Clear All resets the form.
- */
+//  Filter panel: reads form values and exposes getFilterValues().
+//  Clear All resets the form.
 
 (function () {
   "use strict";

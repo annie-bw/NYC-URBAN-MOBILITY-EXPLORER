@@ -1,17 +1,10 @@
-/**
- * API service: fetches data from backend endpoints.
- * Human-friendly errors; all calls return promises.
- */
-
 (function () {
   "use strict";
 
-  // Point to backend; use "" only if the same server serves both frontend and API
   var API_BASE = "http://localhost:5000";
 
-  /**
-   * Show a short, friendly error message on the page.
-   */
+  // Show a short error message on the page.
+
   function handleError(error) {
     var msg = "Something went wrong. Please try again.";
     if (error && error.message) {
@@ -32,17 +25,15 @@
     }
   }
 
-  /**
-   * Hide the error message (call after successful fetch).
-   */
+  // Hide the error message (call after successful fetch).
+
   function hideError() {
     var el = document.getElementById("apiErrorMessage");
     if (el) el.classList.add("hidden");
   }
 
-  /**
-   * Build query string from filters and pagination.
-   */
+  // Build query string from filters and pagination.
+
   function buildQueryString(page, limit, filters) {
     var params = [];
     if (page != null) params.push("page=" + encodeURIComponent(page));
@@ -61,10 +52,9 @@
     return params.length ? "?" + params.join("&") : "";
   }
 
-  /**
-   * Fetch trips from GET /api/trips.
-   * Returns a promise that resolves to the JSON response or rejects on error.
-   */
+  // Fetch trips from GET /api/trips.
+  // Returns a promise that resolves to the JSON response or rejects on error.
+
   function fetchTrips(page, limit, filters) {
     var url = API_BASE + "/api/trips" + buildQueryString(page || 1, limit || 50, filters);
     return fetch(url)
@@ -83,11 +73,10 @@
       });
   }
 
-  /**
-   * Fetch available date range from GET /api/analytics/date-range.
-   * Returns { minDate: "YYYY-MM-DD", maxDate: "YYYY-MM-DD" }.
-   * Used to constrain date filters to dates that exist in the database.
-   */
+  //  Fetch available date range from GET /api/analytics/date-range.
+  //  Returns { minDate: "YYYY-MM-DD", maxDate: "YYYY-MM-DD" }.
+  //  Used to constrain date filters to dates that exist in the database.
+
   function fetchDateRange() {
     var url = API_BASE + "/api/analytics/date-range";
     return fetch(url)
@@ -99,10 +88,9 @@
       .catch(function () { return null; });
   }
 
-  /**
-   * Fetch zones from GET /api/zones.
-   * Returns a promise that resolves to the JSON response or rejects on error.
-   */
+  //  Fetch zones from GET /api/zones.
+  //  Returns a promise that resolves to the JSON response or rejects on error.
+
   function fetchZones() {
     var url = API_BASE + "/api/zones";
     return fetch(url)
@@ -121,10 +109,9 @@
       });
   }
 
-  /**
-   * Fetch anomaly report from GET /api/analytics/anomalies.
-   * Use silent=true to avoid showing error when backend is down.
-   */
+  // Fetch anomaly report from GET /api/analytics/anomalies.
+  // Use silent=true to avoid showing error when backend is down.
+
   function fetchAnomalies(silent) {
     var url = API_BASE + "/api/analytics/anomalies";
     return fetch(url)
@@ -139,10 +126,9 @@
       });
   }
 
-  /**
-   * Fetch top routes from GET /api/analytics/top-routes.
-   * Returns pickup/dropoff zone ids and trip counts.
-   */
+  //  Fetch top routes from GET /api/analytics/top-routes.
+  //  Returns pickup/dropoff zone ids and trip counts.
+
   function fetchTopRoutes() {
     return fetch(API_BASE + "/api/analytics/top-routes")
       .then(function (res) {
@@ -156,9 +142,8 @@
       });
   }
 
-  /**
-   * Fetch heat map (borough by hour) from GET /api/analytics/heat-map.
-   */
+  // Fetch heat map (borough by hour) from GET /api/analytics/heat-map.
+
   function fetchHeatMap() {
     return fetch(API_BASE + "/api/analytics/heat-map")
       .then(function (res) {
@@ -172,9 +157,8 @@
       });
   }
 
-  /**
-   * Fetch daily trip counts from GET /api/analytics/time-series.
-   */
+  //  Fetch daily trip counts from GET /api/analytics/time-series.
+
   function fetchTimeSeries() {
     return fetch(API_BASE + "/api/analytics/time-series")
       .then(function (res) {
@@ -188,9 +172,8 @@
       });
   }
 
-  /**
-   * Fetch city-wide stats from GET /api/analytics/city-overview.
-   */
+  // Fetch city-wide stats from GET /api/analytics/city-overview.
+
   function fetchCityOverview() {
     return fetch(API_BASE + "/api/analytics/city-overview")
       .then(function (res) {
@@ -204,9 +187,8 @@
       });
   }
 
-  /**
-   * Fetch stats for one zone from GET /api/analytics/zone-stats?zone_id=X.
-   */
+  // Fetch stats for one zone from GET /api/analytics/zone-stats?zone_id=X.
+
   function fetchZoneStats(zoneId) {
     var url = API_BASE + "/api/analytics/zone-stats?zone_id=" + encodeURIComponent(zoneId);
     return fetch(url)

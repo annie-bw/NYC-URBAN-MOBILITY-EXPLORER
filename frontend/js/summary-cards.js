@@ -1,15 +1,11 @@
-/**
- * Summary cards: Total Trips, Avg Fare, Avg Distance.
- * updateCards(data) updates the three card values.
- */
+// Summary cards: Total Trips, Avg Fare, Avg Distance.
 
 (function () {
   "use strict";
 
-  /**
-   * Update the three summary cards with the given data.
-   * data: { totalTrips: number, avgFare: string or number, avgDistance: string or number }
-   */
+  // Update the three summary cards with the given data.
+  // data: {totalTrips, avgFare, avgDistance}
+
   function updateCards(data) {
     var totalEl = document.getElementById("totalTrips");
     var fareEl = document.getElementById("avgFare");
