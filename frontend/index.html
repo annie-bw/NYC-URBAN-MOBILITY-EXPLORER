@@ -48,6 +48,7 @@
       <div class="filter-group">
         <label for="endDate">To</label>
         <input type="date" id="endDate">
+        <small>Limited to dates that exist in the database</small>
       </div>
 
       <div class="filter-group">
@@ -123,14 +124,17 @@
 
       <!-- Heatmap -->
       <section class="heatmap-section">
-        <h3>Zone vs Hour (busy = dark)</h3>
+        <h3 class="heatmap-title">Heat Map</h3>
         <div class="heatmap-wrapper">
-          <table id="heatmap" class="heatmap">
-            <thead>
-              <tr id="heatmapHeader"></tr>
-            </thead>
-            <tbody id="heatmapBody"></tbody>
-          </table>
+          <div id="heatmapGrid" class="heatmap-grid"></div>
+        </div>
+        <div class="heatmap-legend">
+          <span class="heatmap-legend-label">Trip Volume</span>
+          <div class="heatmap-legend-bar">
+            <span class="heatmap-legend-low">Low</span>
+            <div class="heatmap-legend-gradient"></div>
+            <span class="heatmap-legend-high">High</span>
+          </div>
         </div>
       </section>
 
@@ -163,6 +167,7 @@
                 <th data-sort="time">Time</th>
                 <th data-sort="from">From</th>
                 <th data-sort="to">To</th>
+                <th data-sort="duration">Duration</th>
                 <th data-sort="fare">Fare</th>
                 <th data-sort="passengers">Passengers</th>
               </tr>
@@ -172,6 +177,21 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Anomaly toggle: fixed on right, expands to show bar chart -->
+  <div class="anomaly-panel">
+    <button type="button" id="anomalyToggle" class="anomaly-toggle" aria-label="Toggle anomaly detection panel">Anomalies</button>
+    <div id="anomalyCard" class="anomaly-card hidden">
+      <div class="anomaly-card-header">
+        <h3>Anomaly Detection</h3>
+        <button type="button" id="anomalyClose" class="anomaly-close" aria-label="Close">x</button>
+      </div>
+      <p class="anomaly-description">Uses Z-Score method. Trips beyond 2 standard deviations from the mean are flagged as unusual (speed or fare).</p>
+      <div class="anomaly-chart-wrap">
+        <canvas id="anomalyChart"></canvas>
+      </div>
+    </div>
   </div>
 
   <script src="js/api.js"></script>

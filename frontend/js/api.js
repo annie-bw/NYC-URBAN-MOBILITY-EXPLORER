@@ -83,6 +83,22 @@
   }
 
   /**
+   * Fetch available date range from GET /api/analytics/date-range.
+   * Returns { minDate: "YYYY-MM-DD", maxDate: "YYYY-MM-DD" }.
+   * Used to constrain date filters to dates that exist in the database.
+   */
+  function fetchDateRange() {
+    var url = API_BASE + "/api/analytics/date-range";
+    return fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function () { return null; });
+  }
+
+  /**
    * Fetch zones from GET /api/zones.
    * Returns a promise that resolves to the JSON response or rejects on error.
    */
@@ -104,8 +120,29 @@
       });
   }
 
+  /**
+   * Fetch anomaly report from GET /api/analytics/anomalies.
+   * Returns summary of speed and fare anomalies (Z-Score method).
+   * Use silent=true to avoid showing error when backend is down (e.g. optional panel).
+   */
+  function fetchAnomalies(silent) {
+    var url = API_BASE + "/api/analytics/anomalies";
+    return fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        if (!silent) handleError(err);
+        throw err;
+      });
+  }
+
   window.fetchTrips = fetchTrips;
   window.fetchZones = fetchZones;
+  window.fetchDateRange = fetchDateRange;
+  window.fetchAnomalies = fetchAnomalies;
   window.handleError = handleError;
   window.hideError = hideError;
 })();

@@ -41,6 +41,7 @@
       var d = new Date(baseDate);
       d.setDate(d.getDate() + randomInRange(0, 30));
       d.setHours(hour, randomInRange(0, 59), 0, 0);
+      var duration = randomInRange(5, 45);
       trips.push({
         time: d.toISOString(),
         from: fromZone,
@@ -48,7 +49,9 @@
         fare: randomInRange(5, 85),
         passengers: randomInRange(1, 4),
         hour: hour,
-        distance: randomInRange(2, 15)
+        distance: randomInRange(2, 15),
+        duration: duration,
+        trip_duration_minutes: duration
       });
     }
     return trips;
@@ -123,6 +126,7 @@
 
   var routesChart = null;
   var timeSeriesChart = null;
+  var anomalyChart = null;
 
   // Chart colors follow theme: accent #0FA3A3, scale text from data-theme
   function getChartThemeColors() {
@@ -195,27 +199,80 @@
   }
 
   function updateHeatmap(zoneHours) {
-    var thead = document.getElementById("heatmapHeader");
-    var tbody = document.getElementById("heatmapBody");
-    thead.innerHTML = "";
-    tbody.innerHTML = "";
-    var maxVal = 0;
+    var gridEl = document.getElementById("heatmapGrid");
+    if (!gridEl) return;
+
+    // Find min and max trip counts across all cells
+    var minVal = Infinity;
+    var maxVal = -Infinity;
     zones.forEach(function (z) {
-      zoneHours[z].forEach(function (v) { if (v > maxVal) maxVal = v; });
+      zoneHours[z].forEach(function (v) {
+        if (v < minVal) minVal = v;
+        if (v > maxVal) maxVal = v;
+      });
     });
-    if (maxVal === 0) maxVal = 1;
-    var headerRow = "<th>Zone</th>";
-    for (var h = 0; h < 24; h++) headerRow += "<th>" + (h === 0 ? "12AM" : h < 12 ? h + "AM" : h === 12 ? "12PM" : (h - 12) + "PM") + "</th>";
-    thead.innerHTML = "<tr>" + headerRow + "</tr>";
-    zones.forEach(function (z) {
-      var row = "<tr><td>" + z + "</td>";
-      for (var j = 0; j < 24; j++) {
-        var intensity = zoneHours[z][j] / maxVal;
-        var alpha = 0.15 + intensity * 0.65;
-        row += "<td style=\"background:rgba(15,163,163," + alpha + ")\">" + zoneHours[z][j] + "</td>";
+    if (minVal === Infinity) minVal = 0;
+    if (maxVal === -Infinity) maxVal = 0;
+    var range = maxVal - minVal;
+    if (range === 0) range = 1;
+
+    // Normalize: (value - min) / range maps each value to 0-1. 0 = lowest, 1 = highest.
+    function normalize(val) {
+      return (val - minVal) / range;
+    }
+
+    // Color scale: Low #134E4A, Medium #14B8A6, High #2DD4BF. Two-segment interpolation.
+    // Low to Medium (normalized 0-0.5), then Medium to High (0.5-1). High values = stronger/brighter.
+    function getColor(normalized) {
+      var r, g, b;
+      if (normalized <= 0.5) {
+        var t = normalized * 2;
+        r = 19 + (20 - 19) * t;
+        g = 78 + (184 - 78) * t;
+        b = 74 + (166 - 74) * t;
+      } else {
+        var t = (normalized - 0.5) * 2;
+        r = 20 + (45 - 20) * t;
+        g = 184 + (212 - 184) * t;
+        b = 166 + (191 - 166) * t;
       }
-      row += "</tr>";
-      tbody.innerHTML += row;
+      return "rgb(" + Math.round(r) + "," + Math.round(g) + "," + Math.round(b) + ")";
+    }
+
+    function hourLabel(h) {
+      return h === 0 ? "12AM" : h < 12 ? h + "AM" : h === 12 ? "12PM" : (h - 12) + "PM";
+    }
+
+    gridEl.innerHTML = "";
+
+    // Build grid: all cells as direct children for CSS grid layout. No numbers in data cells.
+    // Row 0: empty corner + 24 hour labels
+    var corner = document.createElement("div");
+    corner.className = "heatmap-cell heatmap-corner";
+    gridEl.appendChild(corner);
+    for (var h = 0; h < 24; h++) {
+      var headerCell = document.createElement("div");
+      headerCell.className = "heatmap-cell heatmap-header-cell";
+      headerCell.textContent = hourLabel(h);
+      gridEl.appendChild(headerCell);
+    }
+
+    // Rows 1-8: zone name + 24 data cells (background color only)
+    zones.forEach(function (z) {
+      var zoneCell = document.createElement("div");
+      zoneCell.className = "heatmap-cell heatmap-zone-cell";
+      zoneCell.textContent = z;
+      gridEl.appendChild(zoneCell);
+      for (var j = 0; j < 24; j++) {
+        var val = zoneHours[z][j];
+        var norm = normalize(val);
+        var color = getColor(norm);
+        var dataCell = document.createElement("div");
+        dataCell.className = "heatmap-cell heatmap-data-cell";
+        dataCell.style.backgroundColor = color;
+        dataCell.title = z + " " + hourLabel(j) + ": " + val + " trips";
+        gridEl.appendChild(dataCell);
+      }
     });
   }
 
@@ -257,18 +314,30 @@
     renderTableRows();
   }
 
+  function formatDuration(trip) {
+    var mins = trip.duration != null ? trip.duration : trip.trip_duration_minutes;
+    if (mins == null) return "-";
+    return mins + " min";
+  }
+
   function renderTableRows() {
     var sorted = currentTrips.slice().sort(function (a, b) {
       var va = a[sortColumn];
       var vb = b[sortColumn];
       if (sortColumn === "time") return sortDir * (new Date(va) - new Date(vb));
       if (sortColumn === "fare" || sortColumn === "passengers") return sortDir * (va - vb);
+      if (sortColumn === "duration") {
+        var da = a.duration != null ? a.duration : a.trip_duration_minutes;
+        var db = b.duration != null ? b.duration : b.trip_duration_minutes;
+        return sortDir * ((da || 0) - (db || 0));
+      }
       return sortDir * String(va).localeCompare(String(vb));
     });
     var tbody = document.getElementById("tripsTableBody");
     tbody.innerHTML = sorted.map(function (t) {
       var timeStr = new Date(t.time).toLocaleString();
-      return "<tr><td>" + timeStr + "</td><td>" + t.from + "</td><td>" + t.to + "</td><td>$" + t.fare + "</td><td>" + t.passengers + "</td></tr>";
+      var dur = formatDuration(t);
+      return "<tr><td>" + timeStr + "</td><td>" + t.from + "</td><td>" + t.to + "</td><td>" + dur + "</td><td>$" + t.fare + "</td><td>" + t.passengers + "</td></tr>";
     }).join("");
   }
 
@@ -287,6 +356,36 @@
     });
   }
 
+  // Constrain date filters to the range of dates we have in the data
+  function setDateRange(minDate, maxDate) {
+    var startEl = document.getElementById("startDate");
+    var endEl = document.getElementById("endDate");
+    if (!startEl || !endEl || !minDate || !maxDate) return;
+    startEl.min = minDate;
+    startEl.max = maxDate;
+    endEl.min = minDate;
+    endEl.max = maxDate;
+  }
+
+  function getDateRangeFromTrips(trips) {
+    if (!trips || trips.length === 0) return null;
+    function dateStr(t) {
+      var raw = t.time || t.pickup_datetime || "";
+      return String(raw).slice(0, 10);
+    }
+    var first = dateStr(trips[0]);
+    if (!first) return null;
+    var minD = first;
+    var maxD = first;
+    for (var i = 1; i < trips.length; i++) {
+      var d = dateStr(trips[i]);
+      if (!d) continue;
+      if (d < minD) minD = d;
+      if (d > maxD) maxD = d;
+    }
+    return { minDate: minD, maxDate: maxD };
+  }
+
   function showLoading(show) {
     var el = document.getElementById("loadingOverlay");
     if (show) el.classList.remove("hidden"); else el.classList.add("hidden");
@@ -303,6 +402,8 @@
           var topRoutes = buildTopRoutesFromTrips(filtered);
           var timeSeries = buildTimeSeriesFromTrips(filtered);
           var heatmapData = buildHeatmapData(filtered);
+          var dateRange = getDateRangeFromTrips(trips);
+          if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
           callback({ trips: filtered, topRoutes: topRoutes, timeSeries: timeSeries, heatmap: heatmapData });
           showLoading(false);
         })
@@ -327,6 +428,8 @@
       var topRoutes = buildTopRoutesFromTrips(filtered);
       var timeSeries = buildTimeSeriesFromTrips(filtered);
       var heatmapData = buildHeatmapData(filtered);
+      var dateRange = getDateRangeFromTrips(trips);
+      if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
       callback({
         trips: filtered,
         topRoutes: topRoutes,
@@ -362,6 +465,84 @@
     applyFiltersAndRefresh();
   }
 
+  // Anomaly panel: toggle to show/hide card with bar chart of anomaly counts
+  function initAnomalyPanel() {
+    var toggleBtn = document.getElementById("anomalyToggle");
+    var closeBtn = document.getElementById("anomalyClose");
+    var card = document.getElementById("anomalyCard");
+
+    function openPanel() {
+      card.classList.remove("hidden");
+      loadAnomalyChart();
+    }
+
+    function closePanel() {
+      card.classList.add("hidden");
+    }
+
+    function loadAnomalyChart() {
+      if (window.fetchAnomalies) {
+        window.fetchAnomalies(true)
+          .then(function (data) {
+            renderAnomalyChart(data);
+          })
+          .catch(function () {
+            renderAnomalyChart(getMockAnomalyData());
+          });
+      } else {
+        renderAnomalyChart(getMockAnomalyData());
+      }
+    }
+
+    function getMockAnomalyData() {
+      return {
+        summary: {
+          totalTripsAnalyzed: 400,
+          totalAnomalies: 12,
+          speedTooFast: 3,
+          speedTooSlow: 2,
+          fareTooHigh: 4,
+          fareTooLow: 3
+        }
+      };
+    }
+
+    function renderAnomalyChart(data) {
+      var summary = data.summary || {};
+      var labels = ["Speed Too Fast", "Speed Too Slow", "Fare Too High", "Fare Too Low"];
+      var values = [
+        summary.speedTooFast || 0,
+        summary.speedTooSlow || 0,
+        summary.fareTooHigh || 0,
+        summary.fareTooLow || 0
+      ];
+      var colors = getChartThemeColors();
+      var ctx = document.getElementById("anomalyChart");
+      if (!ctx) return;
+      if (anomalyChart) anomalyChart.destroy();
+      anomalyChart = new Chart(ctx.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{ label: "Count", data: values, backgroundColor: colors.accent }]
+        },
+        options: {
+          indexAxis: "y",
+          scales: {
+            x: { beginAtZero: true, ticks: { color: colors.scaleText }, grid: { color: colors.grid } },
+            y: { ticks: { color: colors.scaleText }, grid: { color: colors.grid } }
+          },
+          plugins: { legend: { display: false } },
+          responsive: true,
+          maintainAspectRatio: true
+        }
+      });
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener("click", openPanel);
+    if (closeBtn) closeBtn.addEventListener("click", closePanel);
+  }
+
   function init() {
     applyTheme(getStoredTheme());
 
@@ -395,6 +576,14 @@
     });
 
     bindTableSort();
+    initAnomalyPanel();
+
+    // Set date filter range from API if available (dates in DB only)
+    if (window.fetchDateRange) {
+      window.fetchDateRange().then(function (range) {
+        if (range && range.minDate && range.maxDate) setDateRange(range.minDate, range.maxDate);
+      });
+    }
 
     // Initial load with no filters
     applyFiltersAndRefresh();
