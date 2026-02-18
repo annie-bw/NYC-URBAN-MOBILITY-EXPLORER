@@ -1,0 +1,54 @@
+NYC TAXI DATA CLEANING REPORT
+======================================================================
+
+SUMMARY
+-------
+Initial Records:           2,964,624
+Final Records:             2,690,148
+Total Removed:               274,476
+Retention Rate:               90.74%
+
+REMOVAL BREAKDOWN
+-----------------
+Null Required Fields:              0
+Invalid Fares:                38,387
+Invalid Distances:            56,598
+Invalid Passengers:           30,703
+Invalid Datetimes:             2,332
+Invalid Years:                    14
+Statistical Outliers:        146,439
+Duplicates:                        3
+
+ENGINEERED FEATURES
+-------------------
+1. tip_percentage         [OK]
+2. trip_duration_minutes  [OK]
+3. time_of_day            [OK]
+4. trip_speed_mph         [OK]
+5. day_type               [OK]
+
+DATA QUALITY METRICS
+--------------------
+
+tip_percentage:
+  Mean:     20.86
+
+trip_duration_minutes:
+  Mean:     14.22
+
+trip_speed_mph:
+  Mean:     10.78
+
+TIME OF DAY DISTRIBUTION:
+  Midday:         908,876 (33.8%)
+  Evening Rush:   722,928 (26.9%)
+  Night:          520,045 (19.3%)
+  Morning Rush:   350,401 (13.0%)
+  Early Morning:  187,898 ( 7.0%)
+
+DAY TYPE DISTRIBUTION:
+  Weekday:      2,000,376 (74.4%)
+  Weekend:        689,772 (25.6%)
+
+======================================================================
+END OF REPORT
