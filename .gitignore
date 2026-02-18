@@ -1,28 +1,41 @@
-<<<<<<< HEAD
-# Large CSV files (don't push to GitHub)
-=======
-# Large CSV files
->>>>>>> backend-samuel
-*.csv
+# ============================================
+# NYC TAXI PROJECT - GIT IGNORE
+# ============================================
+
+# DATABASE FILES (Too large for GitHub)
+*.db
+database_architecture/*.db
+database/*.db
+
+# RAW DATA FILES (Too large)
+data/raw/yellow_tripdata.parquet
+data/raw/*.parquet
+data/raw/*.csv
+
+# PROCESSED DATA FILES (Too large)
+data/processed/cleaned_trips.csv
+data/processed/*.csv
 cleaned_trips.csv
 cleaned_trips_copy.csv
+
+# CSV FILES IN ROOT/DATABASE
+*.csv
 taxi_zone_lookup.csv
 database/cleaned_trips_copy.csv
 database/cleaned_trips.csv
 database/taxi_zone_lookup.csv
-<<<<<<< HEAD
-=======
 
->>>>>>> backend-samuel
-# Environment variables
-.env
-database/.env
+# LOGS
+data/logs/*.txt
+*.log
 
-# Python
+# PYTHON CACHE
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+src/__pycache__/
+**/__pycache__/
 .Python
 *.so
 *.egg
@@ -30,21 +43,34 @@ __pycache__/
 dist/
 build/
 
-# Virtual environment
+# VIRTUAL ENVIRONMENTS
 venv/
 env/
 ENV/
+.venv
 
-# IDE
+# ENVIRONMENT VARIABLES
+.env
+database/.env
+
+# IDE FILES
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OPERATING SYSTEM
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Node modules
+# NODE MODULES
 node_modules/
+package-lock.json
+
+# TEMPORARY FILES
+*.tmp
+*.temp
+*.bak
+*.backup
