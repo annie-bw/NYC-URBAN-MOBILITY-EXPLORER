@@ -1,8 +1,9 @@
 const { pool } = require("../config/db");
+const { buildTripsQuery } = require('../utils/queryBuilder');
 
 const getTopRoutes = async () => {
   const query = `
-    SELECT 
+    SELECT
       pickup_zone_id,
       dropoff_zone_id,
       COUNT(*) AS trip_count
@@ -18,7 +19,7 @@ const getTopRoutes = async () => {
 
 const getHeatMap = async () => {
   const query = `
-            SELECT 
+            SELECT
                 z.borough,
                 EXTRACT(HOUR FROM t.pickup_datetime)::INT AS hour,
                 COUNT(*)::INT AS trip_count,
@@ -35,7 +36,7 @@ const getHeatMap = async () => {
 
 const getTimeSeries = async () => {
   const query = `
-    SELECT 
+    SELECT
       DATE(pickup_datetime) AS day,
       COUNT(*) AS trip_count
     FROM trips
@@ -49,7 +50,7 @@ const getTimeSeries = async () => {
 
 const getZoneStats = async (zone_id) => {
   const query = `
-    SELECT 
+    SELECT
       COUNT(*) AS total_trips,
       AVG(fare_amount) AS avg_fare,
       AVG(trip_distance) AS avg_distance
@@ -62,32 +63,27 @@ const getZoneStats = async (zone_id) => {
 };
 
 const getCustomFilters = async (filters) => {
-  let query = "SELECT * FROM trips WHERE 1=1";
-  let params = [];
-  let index = 1;
+  const normalizedFilters = {       //this is to match the query builder info
+    pickup_zone: filters.pickup_zone_id,
+    dropoff_zone: filters.dropoff_zone_id,
+    fare_min: filters.fare_min,
+    fare_max: filters.fare_max,
+  };
 
-  if (filters.fare_min) {
-    query += ` AND fare_amount >= $${index++}`;
-    params.push(filters.fare_min);
-  }
+  const { query, values, index } = buildTripsQuery(normalizedFilters);
 
-  if (filters.fare_max) {
-    query += ` AND fare_amount <= $${index++}`;
-    params.push(filters.fare_max);
-  }
+  // Add pagination, can be slow if they clear all filters
+  const limit = filters.limit || 100;
+  const offset = filters.offset || 0;
+  const finalQuery = `${query} ORDER BY trip_id LIMIT $${index} OFFSET $${index + 1}`;
 
-  if (filters.pickup_zone_id) {
-    query += ` AND pickup_zone_id = $${index++}`;
-    params.push(filters.pickup_zone_id);
-  }
-
-  const result = await pool.query(query, params);
+  const result = await pool.query(finalQuery, [...values, limit, offset]);
   return result.rows;
 };
 
 const getCityOverview = async () => {
   const query = `
-            SELECT 
+            SELECT
                 COUNT(*)::INT AS total_trips,
                 AVG(fare_amount)::FLOAT AS average_fare,
                 AVG(trip_distance)::FLOAT AS average_distance,
