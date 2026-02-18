@@ -18,7 +18,7 @@ const getTripsCount = async (filters = {}) => {
   const { query, values } = buildTripsQuery(filters);
 
   const countQuery = `
-    SELECT COUNT(*) 
+    SELECT COUNT(*)
     FROM (${query}) AS filtered_trips
   `;
 
@@ -27,24 +27,22 @@ const getTripsCount = async (filters = {}) => {
 };
 
 const getZones = async () => {
-  const query = `
+  const result = await pool.query(`
     SELECT *
     FROM zones
     ORDER BY zone_id
-  `;
+  `);
 
-  const result = await pool.query(query);
-  return result.rows;
+  return result.rows[0];
 };
 
 const getZoneById = async (zone_id) => {
-  const query = `
+  const result = await pool.query(`
     SELECT *
     FROM zones
     WHERE zone_id = $1
-  `;
+  `, [zone_id]);
 
-  const result = await pool.query(query, [zone_id]);
   return result.rows[0];
 };
 
