@@ -3,52 +3,50 @@ NYC TAXI DATA CLEANING REPORT
 
 SUMMARY
 -------
-Initial Records:           2,964,624
-Final Records:             2,690,148
-Total Removed:               274,476
-Retention Rate:               90.74%
+Initial Records:           7,696,617
+Final Records:             7,509,595
+Total Removed:               187,022
+Retention Rate:               97.57%
 
 REMOVAL BREAKDOWN
 -----------------
 Null Required Fields:              0
-Invalid Fares:                38,387
-Invalid Distances:            56,598
-Invalid Passengers:           30,703
-Invalid Datetimes:             2,332
-Invalid Years:                    14
-Statistical Outliers:        146,439
-Duplicates:                        3
+Invalid Fares:                 9,804
+Invalid Distances:            52,069
+Invalid Passengers:          115,607
+Invalid Datetimes:             7,113
+Statistical Outliers:          2,002
+Duplicates:                       16
 
 ENGINEERED FEATURES
 -------------------
-1. tip_percentage         [OK]
-2. trip_duration_minutes  [OK]
-3. time_of_day            [OK]
-4. trip_speed_mph         [OK]
-5. day_type               [OK]
+1. tip_percentage         ✓
+2. trip_duration_minutes  ✓
+3. time_of_day            ✓
+4. trip_speed_mph         ✓
+5. day_type               ✓
 
 DATA QUALITY METRICS
 --------------------
 
 tip_percentage:
-  Mean:     20.86
+  Mean:        15.59
+  Median:      20.88
+  Min:          0.00
+  Max:     450000.00
 
 trip_duration_minutes:
-  Mean:     14.22
+  Mean:        16.71
+  Median:      10.27
+  Min:          0.17
+  Max:       1439.98
 
 trip_speed_mph:
-  Mean:     10.78
+  Mean:        11.73
+  Median:      10.14
+  Min:          0.00
+  Max:        200.00
 
-TIME OF DAY DISTRIBUTION:
-  Midday:         908,876 (33.8%)
-  Evening Rush:   722,928 (26.9%)
-  Night:          520,045 (19.3%)
-  Morning Rush:   350,401 (13.0%)
-  Early Morning:  187,898 ( 7.0%)
 
-DAY TYPE DISTRIBUTION:
-  Weekday:      2,000,376 (74.4%)
-  Weekend:        689,772 (25.6%)
-
-======================================================================
 END OF REPORT
+==================

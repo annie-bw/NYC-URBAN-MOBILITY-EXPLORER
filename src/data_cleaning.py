@@ -1,11 +1,22 @@
+"""
+NYC Taxi Data Cleaning Pipeline
+Process:
+1. Load raw parquet data
+2. Validate and remove invalid records
+3. Detect and remove outliers
+4. Engineer 5 new features
+5. Export cleaned data to CSV
+"""
+
 import pandas as pd
 import os
 import sys
 from datetime import datetime
 import logging
+import numpy as np
 
 # Import our custom modules
-from manual_algorithm import ManualOutlierDetector, ManualDataValidator
+from manual_algorithm import ManualDataValidator
 from feature_engineering import FeatureEngineer
 
 
@@ -49,8 +60,6 @@ class TaxiDataCleaner:
             'total_removed': 0
         }
 
-        # Initialize custom algorithm
-        self.outlier_detector = ManualOutlierDetector(threshold=3.0)
         self.validator = ManualDataValidator()
 
         self.df = None
@@ -60,16 +69,20 @@ class TaxiDataCleaner:
         log_file = os.path.join(
             self.log_dir, f'cleaning_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt')
 
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.stream = open(
+            sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file),
+                logging.FileHandler(log_file, encoding='utf-8'),
                 logging.StreamHandler(sys.stdout)
             ]
         )
 
         self.logger = logging.getLogger(__name__)
+        self.logger.info("="*70)
         self.logger.info("NYC TAXI DATA CLEANING PIPELINE STARTED")
         self.logger.info("="*70)
 
@@ -89,10 +102,10 @@ class TaxiDataCleaner:
             self.logger.info(f"Data loaded successfully!")
             self.logger.info(
                 f"   Initial rows: {self.stats['initial_rows']:,}")
-            self.logger.info(f"Columns: {len(self.df.columns)}")
+            self.logger.info(f"   Columns: {len(self.df.columns)}")
 
             # Log column info
-            self.logger.info(f"\n Available columns:")
+            self.logger.info(f"\n   Available columns:")
             for col in self.df.columns:
                 null_count = self.df[col].isnull().sum()
                 null_pct = (null_count / len(self.df)) * 100
@@ -102,7 +115,7 @@ class TaxiDataCleaner:
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to load data: {str(e)}")
+            self.logger.error(f"Failed to load data: {str(e)}")
             return False
 
     def remove_null_required_fields(self):
@@ -117,8 +130,8 @@ class TaxiDataCleaner:
         - PULocationID (must know pickup location)
         - DOLocationID (must know dropoff location)
         """
-        self.logger.info("Removing rows with null required fields")
-        self.logger.info("="*70)
+        self.logger.info("\n" + "="*10)
+        self.logger.info("STEP 1: Removing rows with null required fields")
 
         initial_count = len(self.df)
 
@@ -138,7 +151,7 @@ class TaxiDataCleaner:
 
             if removed > 0:
                 self.logger.info(
-                    f"Removed {removed:,} rows with null {field}")
+                    f"   Removed {removed:,} rows with null {field}")
 
         total_removed = initial_count - len(self.df)
         self.stats['removed_null_required'] = total_removed
@@ -159,8 +172,8 @@ class TaxiDataCleaner:
         - congestion_surcharge
         - Airport_fee
         """
-        self.logger.info("Filling null values in optional fields")
-        self.logger.info("="*70)
+        self.logger.info("STEP 2: Filling null values in optional fields")
+        self.logger.info("===================")
 
         optional_fields = [
             'tip_amount',
@@ -178,7 +191,7 @@ class TaxiDataCleaner:
                 if null_count > 0:
                     self.df[field] = self.df[field].fillna(0)
                     self.logger.info(
-                        f"Filled {null_count:,} nulls in {field} with 0")
+                        f"   Filled {null_count:,} nulls in {field} with 0")
 
         # Fill passenger_count with 1 (most common value)
         if 'passenger_count' in self.df.columns:
@@ -196,13 +209,14 @@ class TaxiDataCleaner:
         Apply business logic validation rules.
         Remove records that violate NYC taxi data constraints.
         """
-        self.logger.info("Validating business rules")
+        self.logger.info("\n" + "="*70)
+        self.logger.info("STEP 3: Validating business rules")
         self.logger.info("="*70)
 
         initial_count = len(self.df)
 
-        # Valid fare amounts
-        self.logger.info("\nValidating fare amounts...")
+        # Rule 1: Valid fare amounts
+        self.logger.info("\n Validating fare amounts...")
         before = len(self.df)
         self.df = self.df[self.df.apply(
             lambda row: self.validator.is_valid_fare(row['fare_amount']),
@@ -213,8 +227,8 @@ class TaxiDataCleaner:
         self.logger.info(
             f"Removed {removed_fare:,} rows with invalid fares")
 
-        # Valid trip distances
-        self.logger.info("\n Validating trip distances...")
+        # Rule 2: Valid trip distances
+        self.logger.info("\n Validating trip distances")
         before = len(self.df)
         self.df = self.df[self.df.apply(
             lambda row: self.validator.is_valid_distance(row['trip_distance']),
@@ -225,9 +239,9 @@ class TaxiDataCleaner:
         self.logger.info(
             f"Removed {removed_distance:,} rows with invalid distances")
 
-        # Valid passenger counts
+        # Rule 3: Valid passenger counts
         if 'passenger_count' in self.df.columns:
-            self.logger.info("\n Validating passenger counts...")
+            self.logger.info("\n Validating passenger counts")
             before = len(self.df)
             self.df = self.df[self.df.apply(
                 lambda row: self.validator.is_valid_passenger_count(
@@ -237,10 +251,10 @@ class TaxiDataCleaner:
             removed_passenger = before - len(self.df)
             self.stats['removed_invalid_passenger'] = removed_passenger
             self.logger.info(
-                f"   Removed {removed_passenger:,} rows with invalid passenger counts")
+                f"Removed {removed_passenger:,} rows with invalid passenger counts")
 
-        # Valid datetime ranges
-        self.logger.info("\n Validating datetime logic...")
+        # Rule 4: Valid datetime ranges
+        self.logger.info("\n Validating datetime logic")
         before = len(self.df)
         self.df = self.df[self.df.apply(
             lambda row: self.validator.is_valid_datetime_range(
@@ -252,14 +266,14 @@ class TaxiDataCleaner:
         removed_datetime = before - len(self.df)
         self.stats['removed_invalid_datetime'] = removed_datetime
         self.logger.info(
-            f"   Removed {removed_datetime:,} rows with invalid datetime ranges")
+            f"Removed {removed_datetime:,} rows with invalid datetime ranges")
 
-        # Remove trips from obviously wrong years (like 2002)
-        self.logger.info("\n Validating year range (must be 2024)...")
+        # Rule 5: Remove trips from obviously wrong years (like 2002)
+        self.logger.info("\n   Validating year range (must be 2019)...")
         before = len(self.df)
         self.df = self.df[
-            (self.df['tpep_pickup_datetime'].dt.year == 2024) &
-            (self.df['tpep_dropoff_datetime'].dt.year == 2024)
+            (self.df['tpep_pickup_datetime'].dt.year == 2019) &
+            (self.df['tpep_dropoff_datetime'].dt.year == 2019)
         ]
         removed_year = before - len(self.df)
         self.logger.info(
@@ -270,72 +284,100 @@ class TaxiDataCleaner:
             f"\n Total removed by business rules: {total_removed:,} rows")
         self.logger.info(f"   Remaining: {len(self.df):,} rows")
 
-    def detect_and_remove_outliers(self):
+    def remove_obvious_errors(self):
         """
-        Use custom algorithm to detect and remove statistical outliers.
-        This is the MANUAL ALGORITHM required by the rubric.
+        Remove only obviously broken records using business rules.
+        Rules:
+        1. Speed > 200 mph (physically impossible for NYC taxi)
+        2. Zero distance AND zero duration (clearly broken record)
+        3. Duration > 24 hours (likely system error)
+        4. Extremely high fares > $1000 (likely data error)
+        5. Negative surcharges/fees (system error)
         """
-        self.logger.info("Detecting outliers using CUSTOM ALGORITHM")
-        self.logger.info("Algorithm: Manual Z-Score Outlier Detection")
-        self.logger.info(
-            "Method: Statistical analysis with manual calculations")
+        self.logger.info("STEP 4: Removing obvious data errors")
+        self.logger.info("="*20)
 
         initial_count = len(self.df)
 
-        # Prepare data for outlier detection
-        columns_to_check = ['fare_amount', 'trip_distance', 'tip_amount']
+        # Calculate duration and speed for validation
+        duration_seconds = (self.df['tpep_dropoff_datetime'] -
+                            self.df['tpep_pickup_datetime']).dt.total_seconds()
+        duration_hours = duration_seconds / 3600
 
-        data_dict = {
-            col: self.df[col].tolist()
-            for col in columns_to_check
-        }
+        # Avoid division by zero for speed calculation
+        self.df['temp_speed'] = 0.0
+        mask = duration_hours > 0
+        self.df.loc[mask, 'temp_speed'] = (self.df.loc[mask, 'trip_distance'] /
+                                           duration_hours[mask])
 
-        # Run custom outlier detection algorithm
+        # Speed > 200 mph (physically impossible)
+        before = len(self.df)
+        self.df = self.df[self.df['temp_speed'] <= 200]
+        removed = before - len(self.df)
+        if removed > 0:
+            self.logger.info(
+                f"   Removed {removed:,} rows with speed > 200 mph")
+
+        # Recalculate duration after filtering
+        duration_seconds = (self.df['tpep_dropoff_datetime'] -
+                            self.df['tpep_pickup_datetime']).dt.total_seconds()
+
+        # Zero distance AND zero duration (clearly broken)
+        before = len(self.df)
+        self.df = self.df[~((self.df['trip_distance'] == 0)
+                            & (duration_seconds == 0))]
+        removed = before - len(self.df)
+        if removed > 0:
+            self.logger.info(
+                f"   Removed {removed:,} rows with zero distance AND zero duration")
+
+        # Recalculate duration again
+        duration_seconds = (self.df['tpep_dropoff_datetime'] -
+                            self.df['tpep_pickup_datetime']).dt.total_seconds()
+
+        # Duration > 24 hours
+        before = len(self.df)
+        self.df = self.df[duration_seconds <= 86400]  # 24 hours in seconds
+        removed = before - len(self.df)
+        if removed > 0:
+            self.logger.info(
+                f"   Removed {removed:,} rows with duration > 24 hours")
+
+        # Extremely high fares
+        before = len(self.df)
+        self.df = self.df[self.df['fare_amount'] <= 1000]
+        removed = before - len(self.df)
+        if removed > 0:
+            self.logger.info(f"   Removed {removed:,} rows with fare > $1000")
+
+        # Negative extra charges
+        if 'extra' in self.df.columns:
+            before = len(self.df)
+            self.df = self.df[self.df['extra'] >= 0]
+            removed = before - len(self.df)
+            if removed > 0:
+                self.logger.info(
+                    f"   Removed {removed:,} rows with negative extra charges")
+
+        # Clean up temporary column
+        self.df = self.df.drop('temp_speed', axis=1)
+
+        total_removed = initial_count - len(self.df)
+        self.stats['removed_outliers'] = total_removed
+
         self.logger.info(
-            f"\n Running outlier detection on {len(self.df):,} rows...")
-        self.logger.info(f"Checking columns: {', '.join(columns_to_check)}")
-
-        outlier_indices = self.outlier_detector.detect_outliers(
-            data_dict, columns_to_check)
-
-        self.logger.info(f"Found {len(outlier_indices):,} outlier records")
-
-        # Log statistics
-        stats_report = self.outlier_detector.get_statistics_report()
-        self.logger.info(stats_report)
-
-        # Remove outliers
-        if outlier_indices:
-            # Get DataFrame indices (not dictionary keys)
-            df_indices_to_remove = self.df.index[list(
-                outlier_indices.keys())].tolist()
-
-            # Log sample outliers
-            self.logger.info("\n Sample outliers detected:")
-            for idx, reasons in list(outlier_indices.items())[:5]:
-                self.logger.info(f"\n Row {idx}:")
-                for reason in reasons:
-                    self.logger.info(f"- {reason['column']}: {reason['value']} "
-                                     f"(Z-score: {reason['z_score']}, Mean: {reason['mean']}, "
-                                     f"StdDev: {reason['std_dev']})")
-
-            # Remove outliers from DataFrame
-            self.df = self.df.drop(df_indices_to_remove)
-            self.df = self.df.reset_index(drop=True)
-
-        removed_outliers = initial_count - len(self.df)
-        self.stats['removed_outliers'] = removed_outliers
-
-        self.logger.info(f"\n Removed {removed_outliers:,} outlier rows")
-        self.logger.info(f"Remaining: {len(self.df):,} rows")
+            f"\n Total removed by business rules: {total_removed:,} rows")
+        self.logger.info(f"   Remaining: {len(self.df):,} rows")
+        self.logger.info(
+            f"   Retention rate: {(len(self.df)/initial_count)*100:.2f}%")
 
     def remove_duplicates(self):
         """
         Remove duplicate trip records.
         Duplicates defined as same pickup/dropoff time and location.
         """
-        self.logger.info("Removing duplicate records")
-        self.logger.info("="*70)
+        self.logger.info("STEP 5: Removing duplicate records")
+        self.logger.info("="*25)
 
         initial_count = len(self.df)
 
@@ -367,41 +409,34 @@ class TaxiDataCleaner:
         4. trip_speed_mph
         5. day_type
         """
-        self.logger.info("Derived features")
-        self.logger.info("="*70)
-
-        feature_engineer = FeatureEngineer()
+        self.logger.info("STEP 6: Engineering derived features")
+        self.logger.info("="*20)
 
         # Calculate all features
         self.logger.info("\n Calculating feature 1: tip_percentage...")
-        self.df['tip_percentage'] = self.df.apply(
-            lambda row: feature_engineer.calculate_tip_percentage(
-                row['tip_amount'],
-                row['fare_amount']
-            ),
-            axis=1
-        )
+        self.df['tip_percentage'] = (
+            self.df['tip_amount'] /
+            self.df['fare_amount'].replace(0, float('nan')) * 100
+        ).fillna(0)
         self.logger.info(
             f"Complete (Mean: {self.df['tip_percentage'].mean():.2f}%)")
 
         self.logger.info(
-            "\n Calculating feature 2: trip_duration_minutes...")
-        self.df['trip_duration_minutes'] = self.df.apply(
-            lambda row: feature_engineer.calculate_trip_duration_minutes(
-                row['tpep_pickup_datetime'],
-                row['tpep_dropoff_datetime']
-            ),
-            axis=1
+            "\n   Calculating feature 2: trip_duration_minutes...")
+        self.df['trip_duration_minutes'] = (
+            (self.df['tpep_dropoff_datetime'] -
+             self.df['tpep_pickup_datetime'])
+            .dt.total_seconds() / 60
         )
         self.logger.info(
             f"Complete (Mean: {self.df['trip_duration_minutes'].mean():.2f} min)")
 
         self.logger.info("\n   Calculating feature 3: time_of_day...")
-        self.df['time_of_day'] = self.df.apply(
-            lambda row: feature_engineer.categorize_time_of_day(
-                row['tpep_pickup_datetime']
-            ),
-            axis=1
+        hour = self.df['tpep_pickup_datetime'].dt.hour
+        self.df['time_of_day'] = np.select(
+            [hour.between(6, 11), hour.between(12, 16), hour.between(17, 20)],
+            ['Morning', 'Afternoon', 'Evening'],
+            default='Night'
         )
         self.logger.info(f"Complete")
         self.logger.info(f"Distribution:")
@@ -409,31 +444,24 @@ class TaxiDataCleaner:
             pct = (count / len(self.df)) * 100
             self.logger.info(f"{category}: {count:,} ({pct:.1f}%)")
 
-        self.logger.info("\n Calculating feature 4: trip_speed_mph")
-        self.df['trip_speed_mph'] = self.df.apply(
-            lambda row: feature_engineer.calculate_trip_speed_mph(
-                row['trip_distance'],
-                row['trip_duration_minutes']
-            ),
-            axis=1
-        )
+        self.logger.info("\n Calculating feature 4: trip_speed_mph...")
+        self.df['trip_speed_mph'] = (
+            self.df['trip_distance'] / (self.df['trip_duration_minutes'] / 60)
+        ).replace([float('inf'), -float('inf')], float('nan')).fillna(0)
         valid_speeds = self.df[self.df['trip_speed_mph'].notna()
                                ]['trip_speed_mph']
         self.logger.info(
             f"Complete (Mean: {valid_speeds.mean():.2f} mph)")
 
         self.logger.info("\n   Calculating feature 5: day_type...")
-        self.df['day_type'] = self.df.apply(
-            lambda row: feature_engineer.categorize_day_type(
-                row['tpep_pickup_datetime']
-            ),
-            axis=1
-        )
+        dow = self.df['tpep_pickup_datetime'].dt.dayofweek
+        self.df['day_type'] = dow.apply(
+            lambda x: 'Weekend' if x >= 5 else 'Weekday')
         self.logger.info(f"Complete")
         self.logger.info(f"Distribution:")
         for category, count in self.df['day_type'].value_counts().items():
             pct = (count / len(self.df)) * 100
-            self.logger.info(f"{category}: {count:,} ({pct:.1f}%)")
+            self.logger.info(f"         {category}: {count:,} ({pct:.1f}%)")
 
         self.logger.info("\n All 5 features engineered successfully!")
 
@@ -441,8 +469,8 @@ class TaxiDataCleaner:
         """
         Export cleaned data to CSV for database loading.
         """
-        self.logger.info("Exporting cleaned data")
-        self.logger.info("="*70)
+        self.logger.info("STEP 7: Exporting cleaned data")
+        self.logger.info("="*25)
 
         output_file = os.path.join(self.output_dir, 'cleaned_trips.csv')
 
@@ -451,11 +479,11 @@ class TaxiDataCleaner:
 
             file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
 
-            self.logger.info(f"Data exported successfully!")
-            self.logger.info(f"File: {output_file}")
-            self.logger.info(f"Size: {file_size_mb:.2f} MB")
-            self.logger.info(f"Rows: {len(self.df):,}")
-            self.logger.info(f"Columns: {len(self.df.columns)}")
+            self.logger.info(f" Data exported successfully!")
+            self.logger.info(f" File: {output_file}")
+            self.logger.info(f" Size: {file_size_mb:.2f} MB")
+            self.logger.info(f" Rows: {len(self.df):,}")
+            self.logger.info(f" Columns: {len(self.df.columns)}")
 
             return output_file
 
@@ -468,7 +496,7 @@ class TaxiDataCleaner:
         Generate comprehensive cleaning report.
         """
         self.logger.info("GENERATING CLEANING REPORT")
-        self.logger.info("="*70)
+        self.logger.info("="*30)
 
         self.stats['final_rows'] = len(self.df)
         self.stats['total_removed'] = self.stats['initial_rows'] - \
@@ -478,10 +506,9 @@ class TaxiDataCleaner:
                           self.stats['initial_rows']) * 100
 
         report = f"""
-
 NYC TAXI DATA CLEANING REPORT
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-{'='*70}
+{'='*30}
 
 SUMMARY
 -------
@@ -521,14 +548,17 @@ DATA QUALITY METRICS
                 report += f"\n  Min:    {self.df[feature].min():>10.2f}"
                 report += f"\n  Max:    {self.df[feature].max():>10.2f}\n"
 
-        report += f"\n{'='*70}\n"
         report += "END OF REPORT\n"
-        report += f"{'='*70}\n"
+        report += f"{'='*20}\n"
 
         # Save report to file
         report_file = os.path.join(self.output_dir, 'cleaning_report.txt')
-        with open(report_file, 'w') as f:
-            f.write(report)
+        try:
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write(report)
+        except Exception as e:
+            self.logger.error(f"Failed to save report: {str(e)}")
+            return None
 
         self.logger.info(report)
         self.logger.info(f"Report saved to: {report_file}")
@@ -556,8 +586,8 @@ DATA QUALITY METRICS
             # Step 4: Validate business rules
             self.validate_business_rules()
 
-            # Step 5: Detect and remove outliers (CUSTOM ALGORITHM)
-            self.detect_and_remove_outliers()
+            # Step 5: Remove obvious errors using business rules
+            self.remove_obvious_errors()
 
             # Step 6: Remove duplicates
             self.remove_duplicates()
@@ -571,7 +601,9 @@ DATA QUALITY METRICS
             # Step 9: Generate report
             report_file = self.generate_cleaning_report()
 
-            self.logger.info("DATA CLEANING PIPELINE COMPLETED SUCCESSFULLY!")
+            self.logger.info("\n" + "="*70)
+            self.logger.info(
+                "DATA CLEANING PIPELINE COMPLETED SUCCESSFULLY!")
             self.logger.info("="*70)
 
             return True, output_file, report_file
@@ -587,12 +619,16 @@ def main():
     """Main execution function."""
 
     # Configuration
-    INPUT_FILE = "../data/raw/yellow_tripdata.parquet"
-    OUTPUT_DIR = "../data/processed"
-    LOG_DIR = "../data/logs"
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    INPUT_FILE = os.path.join(BASE_DIR, "data", "raw",
+                              "yellow_tripdata.parquet")
+    OUTPUT_DIR = os.path.join(BASE_DIR, "data", "processed")
+    LOG_DIR = os.path.join(BASE_DIR, "data", "logs")
 
     print("\n" + "="*70)
     print("NYC TAXI DATA CLEANING PIPELINE")
+    print("Author: BONESHA (Data Engineer + Database Architect)")
+    print("="*70 + "\n")
 
     # Initialize and run cleaner
     cleaner = TaxiDataCleaner(
@@ -604,12 +640,18 @@ def main():
     success, output_file, report_file = cleaner.run_pipeline()
 
     if success:
-        print("=====SUCCESS!=========")
-        print(f"\nCleaned data:{output_file}")
-        print(f"Report:{report_file}")
+        print("\n" + "="*70)
+        print("✅ SUCCESS!")
+        print("="*70)
+        print(f"\nCleaned data:  {output_file}")
+        print(f"Report:        {report_file}")
+        print(f"\nNext step: Load this data into PostgreSQL database")
+        print("="*70 + "\n")
     else:
-        print(" =======PIPELINE FAILED==========")
+        print("❌ PIPELINE FAILED")
+        print("="*40)
         print("\nCheck the log files for details.")
+        print("="*40 + "\n")
 
 
 if __name__ == "__main__":
