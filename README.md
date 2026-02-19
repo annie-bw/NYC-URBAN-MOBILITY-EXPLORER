@@ -110,8 +110,7 @@ NYC-URBAN-MOBILITY-EXPLORER/
 │   ├── test_api.cjs              
 │   ├── test_integration.cjs               
 ├── .env.example                 
-├── .gitignore                  
-├── LICENSE                    
+├── .gitignore                                     
 ├── README.md                  
 ├── package.json              
 └── requirements.txt          
