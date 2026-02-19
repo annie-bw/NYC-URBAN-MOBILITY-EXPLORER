@@ -80,23 +80,40 @@ This cleans the raw data, computes derived features, and inserts everything into
 ```
 NYC-URBAN-MOBILITY-EXPLORER/
 ├── backend/
-│   ├── server.js
-│   ├── routes/
-│   ├── controllers/
-│   ├── services/
-│   ├── algorithms/        z-score anomaly detector, selection sort, std dev
-│   ├── utils/             query builder, pagination
-│   ├── middleware/
-│   └── tests/
+│   ├── controllers/             # Handles API logic
+│   ├── routes/                  # API route definitions
+│   ├── services/                # Business logic / data services
+│   ├── utils/                   # Helpers (query builder, pagination, etc.)
+│   ├── algorithms/              # Algorithms (e.g., z-score anomaly detector, std dev, sort)
+│   ├── middleware/              # Express middleware (auth, validation)
+│   ├── tests/                   # Backend tests (unit/integration)
+│   ├── server.js                # Main backend server entrypoint
 ├── frontend/
-│   ├── index.html
-│   ├── script.js
-│   ├── styles/
-│   └── js/                api.js, filters.js, summary-cards.js
-└── database/
-    ├── schema.sql
-    ├── populate-db.py
-    └── indexes.sql
+│   ├── js/
+│   │   ├── api.js               # API interaction module
+│   │   ├── filters.js           # Filter logic
+│   │   └── summary-cards.js     # Dashboard card UI logic
+│   ├── styles/                  # CSS styles
+│   ├── index.html               # Frontend HTML
+│   └── script.js                # Frontend logic
+├── database/
+│   ├── schema.sql               # Database table definitions
+│   ├── indexes.sql              # Index creation SQL for query performance
+│   └── populate-db.py           # Python ETL for taxi data ingestion
+├── docs/                       
+│   ├── architecture.md          # System/architecture overview
+│   ├── api.md                   # API specification / endpoints
+│   └── data-dictionary.md       # Data schema & field descriptions
+├── tests/                       
+│   ├── test_api.cjs              
+│   ├── test_integration.cjs               
+├── .env.example                 
+├── .gitignore                  
+├── LICENSE                    
+├── README.md                  
+├── package.json              
+└── requirements.txt          
+
 ```
 
 ---
