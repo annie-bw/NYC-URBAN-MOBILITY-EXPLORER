@@ -2,7 +2,7 @@
 
 **Database:** PostgreSQL
 **Database Name:** nyc_taxi
-**Purpose:** Store and query 2.68M cleaned NYC taxi trip records
+**Purpose:** Store and query 7.48M cleaned NYC taxi trip records
 
 ---
 
@@ -22,8 +22,8 @@
 ### Database Statistics
 - **Total Tables:** 3 (zones, trips, derived_features)
 - **Total Views:** 2 (v_trips_complete, v_zone_stats)
-- **Total Rows:** ~2.68 million trip records
-- **Storage Size:** ~1.13 GB
+- **Total Rows:** ~7.48 million trip records
+- **Storage Size:** ~3.13 GB
 - **Index Count:** 12 indexes for query optimization
 
 ### Technology Stack
@@ -47,8 +47,8 @@
 See `documents\NYC_ERD_Diagram.png` for visual representation.
 
 **Summary:**
-- **zones** (263 rows) → **trips** (2.68M rows) [One-to-Many, twice: pickup and dropoff]
-- **trips** (2.68M rows) → **derived_features** (2.68M rows) [One-to-One]
+- **zones** (263 rows) → **trips** (7.48M rows) [One-to-Many, twice: pickup and dropoff]
+- **trips** (7.48M rows) → **derived_features** (7.48M rows) [One-to-One]
 
 ---
 
@@ -142,7 +142,7 @@ const pool = new Pool({
 | total_amount | DECIMAL(10,2) | NOT NULL | Total charged |
 | ... | ... | ... | (15 more columns) |
 
-**Rows:** ~2,683,000 trips
+**Rows:** ~7,489,651 trips
 **Business Rules:** pickup < dropoff, distance > 0, amounts ≥ 0
 
 ---
@@ -161,7 +161,7 @@ const pool = new Pool({
 | trip_speed_mph | DECIMAL(10,2) | ≥0 | Avg speed |
 | day_type | VARCHAR(10) | CHECK | Weekday/Weekend |
 
-**Rows:** ~2,683,000 (one per trip)
+**Rows:** ~7,489,651 trips (one per trip)
 
 ---
 
@@ -239,7 +239,7 @@ idx_features_speed         -- Speed-based queries
 ### Performance Impact
 
 **Without indexes:**
-- Query "Find Manhattan pickups": ~8.5 seconds (full scan of 2.68M rows)
+- Query "Find Manhattan pickups": ~8.5 seconds (full scan of 7.48M rows)
 
 **With indexes:**
 - Same query: ~0.08 seconds (106x faster!)
@@ -258,7 +258,7 @@ idx_features_speed         -- Speed-based queries
 ### Why 3 Tables?
 
 **Alternative 1: Single table with everything**
-- ❌ Zone names repeated 2.68M times
+- ❌ Zone names repeated 7.48M times
 - ❌ Wastes ~300MB storage
 - ❌ Slower queries
 - ❌ Hard to update zone info
@@ -447,7 +447,6 @@ SELECT DATE(pickup_datetime), COUNT(*) FROM trips GROUP BY 1;
 
 ---
 
-**Contact:** BONESHA (Database Architect)
 **Last Updated:** February 14, 2026
 **Version:** 1.0
 **Database:** PostgreSQL 15+
