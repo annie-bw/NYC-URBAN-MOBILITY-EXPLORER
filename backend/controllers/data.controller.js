@@ -5,13 +5,10 @@ const getAllTrips = async (req, res, next) => {
   try {
     const { page, limit, startDate, endDate, fareMin, timeOfDay } = req.query;
 
-    // borough arrives as a repeated query param: ?borough=Manhattan&borough=Brooklyn
-    // Express gives an array when the same key appears multiple times, or a string for one value
     let boroughs = req.query.borough;
     if (!boroughs) boroughs = [];
     else if (!Array.isArray(boroughs)) boroughs = [boroughs];
 
-    // zone_id arrives as repeated param: ?zone_id=1&zone_id=42
     let zoneIds = req.query.zone_id;
     if (!zoneIds) zoneIds = [];
     else if (!Array.isArray(zoneIds)) zoneIds = [zoneIds];
@@ -20,15 +17,15 @@ const getAllTrips = async (req, res, next) => {
     const filters = {
       boroughs,
       zoneIds,
-      startDate:  startDate || null,
-      endDate:    endDate   || null,
-      fare_min:   fareMin   ? parseFloat(fareMin) : null,
-      timeOfDay:  timeOfDay || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      fare_min: fareMin ? parseFloat(fareMin) : null,
+      timeOfDay: timeOfDay || null,
     };
 
     const { limit: l, offset } = getPagination(page, limit);
 
-    // Both getTrips and getTripsCount use the same filters so the total is always accurate
+    // Both getTrips and getTripsCount use the same filters
     const trips = await dataService.getTrips(filters, l, offset);
     const total = await dataService.getTripsCount(filters);
 
@@ -40,7 +37,6 @@ const getAllTrips = async (req, res, next) => {
       totalPages: Math.ceil(total / l),
       data: trips,
     });
-
   } catch (error) {
     next(error);
   }

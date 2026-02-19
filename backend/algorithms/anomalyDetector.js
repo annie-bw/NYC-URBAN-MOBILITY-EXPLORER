@@ -8,7 +8,7 @@ function detectSpeedAnomalies(trips) {
     speeds[speeds.length] = trips[i].trip_speed_mph;
   }
 
-  // Compute mean and standard deviation from scratch
+  // Compute mean and standard deviation
   const mean = computeMean(speeds);
   const stdDev = computeStdDev(speeds, mean);
 
@@ -44,12 +44,11 @@ function detectSpeedAnomalies(trips) {
     }
   }
 
-  // Sort anomalies by |zScore| descending
+  // Sort anomalies
   for (let i = 0; i < anomalies.length; i++) {
     anomalies[i]._sortKey = Math.abs(anomalies[i].zScore);
   }
   const sorted = selectionSort(anomalies, "_sortKey");
-  // Clean up the temporary sort key
   for (let i = 0; i < sorted.length; i++) {
     delete sorted[i]._sortKey;
   }
