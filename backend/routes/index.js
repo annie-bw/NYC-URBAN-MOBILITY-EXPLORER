@@ -8,6 +8,7 @@ const {
   getTimeSeries,
   getCustomFilters,
   getCityOverview,
+  getFilteredStats,
 } = require("../controllers/analytics.controller");
 
 const { getAnomalies } = require("../controllers/anomalies.controller");
@@ -24,5 +25,6 @@ router.get("/analytics/time-series", getTimeSeries);
 router.post("/analytics/custom-filter", getCustomFilters);
 router.get("/analytics/anomalies", getAnomalies);
 router.get("/analytics/city-overview", getCityOverview);
+router.get("/analytics/filtered-stats", getFilteredStats);
 
 module.exports = router;
