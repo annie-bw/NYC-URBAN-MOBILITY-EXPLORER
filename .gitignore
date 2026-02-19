@@ -4,7 +4,6 @@
 
 # DATABASE FILES (Too large for GitHub)
 *.db
-database_architecture/*.db
 database/*.db
 
 # RAW DATA FILES (Too large)
