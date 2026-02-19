@@ -3,8 +3,6 @@
 
   var API_BASE = "http://localhost:5000";
 
-  // Show a short error message on the page.
-
   function handleError(error) {
     var msg = "Something went wrong. Please try again.";
     if (error && error.message) {
@@ -25,36 +23,36 @@
     }
   }
 
-  // Hide the error message (call after successful fetch).
-
   function hideError() {
     var el = document.getElementById("apiErrorMessage");
     if (el) el.classList.add("hidden");
   }
 
-  // Build query string from filters and pagination.
-
   function buildQueryString(page, limit, filters) {
     var params = [];
-    if (page != null) params.push("page=" + encodeURIComponent(page));
+    if (page != null)  params.push("page="  + encodeURIComponent(page));
     if (limit != null) params.push("limit=" + encodeURIComponent(limit));
     if (filters) {
       if (filters.startDate) params.push("startDate=" + encodeURIComponent(filters.startDate));
-      if (filters.endDate) params.push("endDate=" + encodeURIComponent(filters.endDate));
+      if (filters.endDate)   params.push("endDate="   + encodeURIComponent(filters.endDate));
       if (filters.boroughs && filters.boroughs.length) {
         filters.boroughs.forEach(function (b) {
           params.push("borough=" + encodeURIComponent(b));
         });
       }
-      if (filters.fareMin != null) params.push("fareMin=" + encodeURIComponent(filters.fareMin));
+      if (filters.fareMin != null && filters.fareMin > 0) params.push("fareMin=" + encodeURIComponent(filters.fareMin));
       if (filters.selectedTime) params.push("timeOfDay=" + encodeURIComponent(filters.selectedTime));
+      // zone_id sent as repeated param so backend receives an array
+      if (filters.selectedZones && filters.selectedZones.length) {
+        filters.selectedZones.forEach(function (id) {
+          params.push("zone_id=" + encodeURIComponent(id));
+        });
+      }
     }
     return params.length ? "?" + params.join("&") : "";
   }
 
-  // Fetch trips from GET /api/trips.
-  // Returns a promise that resolves to the JSON response or rejects on error.
-
+  // page and limit are explicit — callers control pagination directly
   function fetchTrips(page, limit, filters) {
     var url = API_BASE + "/api/trips" + buildQueryString(page || 1, limit || 50, filters);
     return fetch(url)
@@ -73,27 +71,17 @@
       });
   }
 
-  //  Fetch available date range from GET /api/analytics/date-range.
-  //  Returns { minDate: "YYYY-MM-DD", maxDate: "YYYY-MM-DD" }.
-  //  Used to constrain date filters to dates that exist in the database.
-
   function fetchDateRange() {
-    var url = API_BASE + "/api/analytics/date-range";
-    return fetch(url)
+    return fetch(API_BASE + "/api/analytics/date-range")
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
-        hideError();
         return res.json();
       })
       .catch(function () { return null; });
   }
 
-  //  Fetch zones from GET /api/zones.
-  //  Returns a promise that resolves to the JSON response or rejects on error.
-
   function fetchZones() {
-    var url = API_BASE + "/api/zones";
-    return fetch(url)
+    return fetch(API_BASE + "/api/zones")
       .then(function (res) {
         if (!res.ok) {
           var err = new Error("Request failed: " + res.status);
@@ -110,11 +98,10 @@
   }
 
   // Fetch anomaly report from GET /api/analytics/anomalies.
+  // Always returns city-wide anomalies — no filters applied.
   // Use silent=true to avoid showing error when backend is down.
-
   function fetchAnomalies(silent) {
-    var url = API_BASE + "/api/analytics/anomalies";
-    return fetch(url)
+    return fetch(API_BASE + "/api/analytics/anomalies")
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
@@ -126,53 +113,35 @@
       });
   }
 
-  //  Fetch top routes from GET /api/analytics/top-routes.
-  //  Returns pickup/dropoff zone ids and trip counts.
-
-  function fetchTopRoutes() {
-    return fetch(API_BASE + "/api/analytics/top-routes")
+  function fetchTopRoutes(filters) {
+    return fetch(API_BASE + "/api/analytics/top-routes" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
         return res.json();
       })
-      .catch(function (err) {
-        handleError(err);
-        throw err;
-      });
+      .catch(function (err) { handleError(err); throw err; });
   }
 
-  // Fetch heat map (borough by hour) from GET /api/analytics/heat-map.
-
-  function fetchHeatMap() {
-    return fetch(API_BASE + "/api/analytics/heat-map")
+  function fetchHeatMap(filters) {
+    return fetch(API_BASE + "/api/analytics/heat-map" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
         return res.json();
       })
-      .catch(function (err) {
-        handleError(err);
-        throw err;
-      });
+      .catch(function (err) { handleError(err); throw err; });
   }
 
-  //  Fetch daily trip counts from GET /api/analytics/time-series.
-
-  function fetchTimeSeries() {
-    return fetch(API_BASE + "/api/analytics/time-series")
+  function fetchTimeSeries(filters) {
+    return fetch(API_BASE + "/api/analytics/time-series" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
         return res.json();
       })
-      .catch(function (err) {
-        handleError(err);
-        throw err;
-      });
+      .catch(function (err) { handleError(err); throw err; });
   }
-
-  // Fetch city-wide stats from GET /api/analytics/city-overview.
 
   function fetchCityOverview() {
     return fetch(API_BASE + "/api/analytics/city-overview")
@@ -181,37 +150,42 @@
         hideError();
         return res.json();
       })
-      .catch(function (err) {
-        handleError(err);
-        throw err;
-      });
+      .catch(function (err) { handleError(err); throw err; });
   }
 
-  // Fetch stats for one zone from GET /api/analytics/zone-stats?zone_id=X.
-
   function fetchZoneStats(zoneId) {
-    var url = API_BASE + "/api/analytics/zone-stats?zone_id=" + encodeURIComponent(zoneId);
-    return fetch(url)
+    return fetch(API_BASE + "/api/analytics/zone-stats?zone_id=" + encodeURIComponent(zoneId))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
         return res.json();
       })
-      .catch(function (err) {
-        handleError(err);
-        throw err;
-      });
+      .catch(function (err) { handleError(err); throw err; });
   }
 
-  window.fetchTrips = fetchTrips;
-  window.fetchZones = fetchZones;
-  window.fetchDateRange = fetchDateRange;
-  window.fetchAnomalies = fetchAnomalies;
-  window.fetchTopRoutes = fetchTopRoutes;
-  window.fetchHeatMap = fetchHeatMap;
-  window.fetchTimeSeries = fetchTimeSeries;
+  // Fetch COUNT + AVG fare + AVG distance for the full filtered dataset.
+  // Accepts the same filter params as fetchTrips but no page/limit.
+  // Used to show accurate totals in cards and zone stats regardless of current page.
+  function fetchFilteredStats(filters) {
+    var url = API_BASE + "/api/analytics/filtered-stats" + buildQueryString(null, null, filters);
+    return fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        return res.json();
+      })
+      .catch(function () { return null; });
+  }
+
+  window.fetchFilteredStats = fetchFilteredStats;
+  window.fetchTrips       = fetchTrips;
+  window.fetchZones       = fetchZones;
+  window.fetchDateRange   = fetchDateRange;
+  window.fetchAnomalies   = fetchAnomalies;
+  window.fetchTopRoutes   = fetchTopRoutes;
+  window.fetchHeatMap     = fetchHeatMap;
+  window.fetchTimeSeries  = fetchTimeSeries;
   window.fetchCityOverview = fetchCityOverview;
-  window.fetchZoneStats = fetchZoneStats;
-  window.handleError = handleError;
-  window.hideError = hideError;
+  window.fetchZoneStats   = fetchZoneStats;
+  window.handleError      = handleError;
+  window.hideError        = hideError;
 })();
