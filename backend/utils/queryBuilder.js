@@ -38,26 +38,31 @@ const buildTripsQuery = (filters = {}) => {
   }
 
   // Borough filter — frontend sends ?borough=Manhattan&borough=Brooklyn
-  // A trip matches if EITHER its pickup OR dropoff borough is in the list.
-  // Each IN clause needs its own separate parameter placeholders in pg.
   if (filters.boroughs && filters.boroughs.length > 0) {
-    const pickupPlaceholders = filters.boroughs.map(() => `$${index++}`).join(", ");
-    filters.boroughs.forEach(b => values.push(b));
+    const pickupPlaceholders = filters.boroughs
+      .map(() => `$${index++}`)
+      .join(", ");
+    filters.boroughs.forEach((b) => values.push(b));
 
-    const dropoffPlaceholders = filters.boroughs.map(() => `$${index++}`).join(", ");
-    filters.boroughs.forEach(b => values.push(b));
+    const dropoffPlaceholders = filters.boroughs
+      .map(() => `$${index++}`)
+      .join(", ");
+    filters.boroughs.forEach((b) => values.push(b));
 
     query += ` AND (pz.borough IN (${pickupPlaceholders}) OR dz.borough IN (${dropoffPlaceholders}))`;
   }
 
-  // Zone ID filter — specific zone IDs from the zone dropdown.
-  // Matches trips where pickup OR dropoff zone is in the selected list.
+  // Zone ID filter
   if (filters.zoneIds && filters.zoneIds.length > 0) {
-    const pickupPlaceholders = filters.zoneIds.map(() => `$${index++}`).join(", ");
-    filters.zoneIds.forEach(id => values.push(id));
+    const pickupPlaceholders = filters.zoneIds
+      .map(() => `$${index++}`)
+      .join(", ");
+    filters.zoneIds.forEach((id) => values.push(id));
 
-    const dropoffPlaceholders = filters.zoneIds.map(() => `$${index++}`).join(", ");
-    filters.zoneIds.forEach(id => values.push(id));
+    const dropoffPlaceholders = filters.zoneIds
+      .map(() => `$${index++}`)
+      .join(", ");
+    filters.zoneIds.forEach((id) => values.push(id));
 
     query += ` AND (t.pickup_zone_id IN (${pickupPlaceholders}) OR t.dropoff_zone_id IN (${dropoffPlaceholders}))`;
   }
@@ -77,11 +82,11 @@ const buildTripsQuery = (filters = {}) => {
   // Time of day — maps label to pickup hour range
   if (filters.timeOfDay) {
     const timeRanges = {
-      early:   [0,  5],
-      morning: [5,  10],
-      midday:  [10, 16],
+      early: [0, 5],
+      morning: [5, 10],
+      midday: [10, 16],
       evening: [16, 21],
-      night:   [21, 24],
+      night: [21, 24],
     };
     const range = timeRanges[filters.timeOfDay];
     if (range) {
@@ -89,18 +94,6 @@ const buildTripsQuery = (filters = {}) => {
       query += ` AND EXTRACT(HOUR FROM t.pickup_datetime) < $${index++}`;
       values.push(range[0], range[1]);
     }
-  }
-
-  // Zone ID filter — specific zone IDs from the zone dropdown.
-  // Matches trips where pickup OR dropoff zone is in the selected list.
-  if (filters.zoneIds && filters.zoneIds.length > 0) {
-    const pickupPlaceholders = filters.zoneIds.map(() => `${index++}`).join(", ");
-    filters.zoneIds.forEach(id => values.push(id));
-
-    const dropoffPlaceholders = filters.zoneIds.map(() => `${index++}`).join(", ");
-    filters.zoneIds.forEach(id => values.push(id));
-
-    query += ` AND (t.pickup_zone_id IN (${pickupPlaceholders}) OR t.dropoff_zone_id IN (${dropoffPlaceholders}))`;
   }
 
   return { query, values, index };

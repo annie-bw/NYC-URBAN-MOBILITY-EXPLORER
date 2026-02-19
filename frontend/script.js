@@ -29,8 +29,75 @@
   var zoneIdToBorough = {};
   var zonesList = [];
   var zonesLoaded = false;
+  var currentPage = 1;
+  var currentTotalPages = 1;
+  var currentFilters = {};
 
+  function randomInRange(min, max) {
+    return Math.round(min + Math.random() * (max - min));
+  }
 
+  function generateMockTrips(count) {
+    var mockZones = zoneNamesForHeatmap.concat(["JFK", "LaGuardia", "Newark"]);
+    var trips = [];
+    var baseDate = new Date("2024-01-01");
+    for (var i = 0; i < count; i++) {
+      var fromZone = mockZones[randomInRange(0, mockZones.length - 1)];
+      var toZone = mockZones[randomInRange(0, mockZones.length - 1)];
+      if (fromZone === toZone) toZone = mockZones[(mockZones.indexOf(fromZone) + 1) % mockZones.length];
+      var hour = randomInRange(0, 23);
+      var d = new Date(baseDate);
+      d.setDate(d.getDate() + randomInRange(0, 30));
+      d.setHours(hour, randomInRange(0, 59), 0, 0);
+      var duration = randomInRange(5, 45);
+      trips.push({
+        time: d.toISOString(),
+        from: fromZone,
+        to: toZone,
+        fare: randomInRange(5, 85),
+        passengers: randomInRange(1, 4),
+        hour: hour,
+        distance: randomInRange(2, 15),
+        duration: duration,
+        trip_duration_minutes: duration
+      });
+    }
+    return trips;
+  }
+
+  // Build top routes from trip list (route = from-to)
+  function buildTopRoutesFromTrips(tripsData) {
+    var counts = {};
+    tripsData.forEach(function (t) {
+      var route = t.from + "-" + t.to;
+      counts[route] = (counts[route] || 0) + 1;
+    });
+    return Object.keys(counts).map(function (r) { return { route: r, trips: counts[r] }; })
+      .sort(function (a, b) { return b.trips - a.trips; }).slice(0, 10);
+  }
+
+  // Build time series from trip list by day
+  function buildTimeSeriesFromTrips(tripsData) {
+    var byDay = {};
+    tripsData.forEach(function (t) {
+      var day = t.time.slice(0, 10);
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    var days = Object.keys(byDay).sort();
+    return days.map(function (d) { return { day: d, trips: byDay[d] }; });
+  }
+
+  function buildHeatmapData(tripsData) {
+    var zoneHours = {};
+    zoneNamesForHeatmap.forEach(function (z) {
+      zoneHours[z] = [];
+      for (var h = 0; h < 24; h++) zoneHours[z].push(0);
+    });
+    tripsData.forEach(function (t) {
+      if (zoneHours[t.from]) zoneHours[t.from][t.hour]++;
+    });
+    return zoneHours;
+  }
 
   // Map raw trip from API to normalized format for table and filters
   function normalizeTrip(raw, lookup) {
@@ -57,26 +124,21 @@
   }
 
   // Convert backend heat map (borough + hours) to our grid format.
-  // Borough list is built from whatever the API actually returns — not the
-  // hardcoded fallback — so filtered views only show the relevant boroughs.
+  // Uses the hardcoded borough list so null/unknown API rows are silently ignored.
   function heatMapFromApi(apiRows) {
-    if (!apiRows || !Array.isArray(apiRows) || apiRows.length === 0) return {};
-
-    // Derive borough order from API response and update the module-level list
-    // so updateHeatmap renders exactly these rows, nothing more.
-    // Preserve the order the API returns — do not re-sort.
-    var names = apiRows.map(function (r) { return r.name; }).filter(Boolean);
-    zoneNamesForHeatmap = names;
-
     var zoneHours = {};
     zoneNamesForHeatmap.forEach(function (z) {
-      zoneHours[z] = Array(24).fill(0);
+      zoneHours[z] = [];
+      for (var h = 0; h < 24; h++) zoneHours[z].push(0);
     });
+    if (!apiRows || !Array.isArray(apiRows)) return zoneHours;
     apiRows.forEach(function (row) {
-      if (!zoneHours[row.name]) return;
+      var name = row.name;
+      // Only fill rows that match a known borough — null/unknown rows are ignored
+      if (!zoneHours[name]) return;
       for (var h = 0; h < 24; h++) {
         var cell = row.hours && row.hours[h];
-        zoneHours[row.name][h] = cell ? (cell.trips || 0) : 0;
+        zoneHours[name][h] = cell ? (cell.trips || 0) : 0;
       }
     });
     return zoneHours;
@@ -87,11 +149,44 @@
     return window.getFilterValues ? window.getFilterValues() : { startDate: null, endDate: null, boroughs: [], selectedZones: [], fareMin: 0, selectedTime: null };
   }
 
-  // All filtering is now handled by the backend via buildTripsQuery.
-  // Borough, date, fare, time of day, and zone IDs are all sent as query params
-  // and applied in SQL — no client-side re-filtering needed.
-  function filterTrips(tripsData) {
-    return tripsData.slice();
+  // Filter trips: date range, boroughs, zone ids, fare, time of day
+  function filterTrips(tripsData, filters) {
+    var result = tripsData.slice();
+    var timeStr = function (t) { return (t.time || "").toString().slice(0, 10); };
+    if (filters.startDate) {
+      result = result.filter(function (t) { return timeStr(t) >= filters.startDate; });
+    }
+    if (filters.endDate) {
+      result = result.filter(function (t) { return timeStr(t) <= filters.endDate; });
+    }
+    if (filters.boroughs && filters.boroughs.length > 0) {
+      result = result.filter(function (t) {
+        if (t.pickup_zone_id != null && zoneIdToBorough[t.pickup_zone_id]) {
+          if (filters.boroughs.indexOf(zoneIdToBorough[t.pickup_zone_id]) !== -1) return true;
+        }
+        if (t.dropoff_zone_id != null && zoneIdToBorough[t.dropoff_zone_id]) {
+          if (filters.boroughs.indexOf(zoneIdToBorough[t.dropoff_zone_id]) !== -1) return true;
+        }
+        return filters.boroughs.indexOf(t.from) !== -1 || filters.boroughs.indexOf(t.to) !== -1;
+      });
+    }
+    if (filters.selectedZones && filters.selectedZones.length > 0) {
+      var zoneIds = filters.selectedZones.map(function (v) { return parseInt(v, 10); });
+      var validIds = zoneIds.filter(function (n) { return !isNaN(n); });
+      result = result.filter(function (t) {
+        if (validIds.length && (t.pickup_zone_id != null || t.dropoff_zone_id != null)) {
+          return validIds.indexOf(t.pickup_zone_id) !== -1 || validIds.indexOf(t.dropoff_zone_id) !== -1;
+        }
+        return filters.selectedZones.indexOf(t.from) !== -1 || filters.selectedZones.indexOf(t.to) !== -1;
+      });
+    }
+    result = result.filter(function (t) { return (t.fare || 0) >= (filters.fareMin || 0); });
+    if (filters.selectedTime) {
+      var ranges = { early: [0, 5], morning: [5, 10], midday: [10, 16], evening: [16, 21], night: [21, 24] };
+      var r = ranges[filters.selectedTime];
+      if (r) result = result.filter(function (t) { return t.hour >= r[0] && t.hour < r[1]; });
+    }
+    return result;
   }
 
   var routesChart = null;
@@ -196,15 +291,8 @@
     var gridEl = document.getElementById("heatmapGrid");
     if (!gridEl) return;
 
-    // If no data came back (e.g. a filter returned zero trips), show a message
-    if (!zoneHours || zoneNamesForHeatmap.length === 0) {
-      gridEl.innerHTML = "<div class='heatmap-empty'>No data for current selection.</div>";
-      return;
-    }
-
-    // Normalize per borough — each row uses its own min/max so every borough
-    // shows its own relative activity pattern. A shared global min/max causes
-    // high-volume boroughs (Manhattan) to wash out all others to near-zero colour.
+    // Normalize per borough so each row shows its own activity pattern independently.
+    // A global min/max would let high-volume boroughs (Manhattan) wash out all others.
     var zoneBounds = {};
     zoneNamesForHeatmap.forEach(function (z) {
       var vals = zoneHours[z] || [];
@@ -262,7 +350,7 @@
       zoneCell.textContent = z;
       gridEl.appendChild(zoneCell);
       for (var j = 0; j < 24; j++) {
-        var val = zoneHours[z][j];
+        var val = (zoneHours[z] || [])[j] || 0;
         var norm = normalize(val, z);
         var color = getColor(norm);
         var dataCell = document.createElement("div");
@@ -287,20 +375,38 @@
     }
   }
 
-  // Zone stats are always computed from whatever trips the backend already returned.
-  // No filters = all trips = city-wide stats.
-  // Manhattan selected = only Manhattan trips = Manhattan stats.
-  // Manhattan + Brooklyn = combined stats for both boroughs.
-  // The "Total Trips" here always matches the row count in the table below.
-  function updateZoneStats(trips) {
-    var total = trips ? trips.length : 0;
-    var avgFare = total
-      ? "$" + (trips.reduce(function (s, t) { return s + (parseFloat(t.fare) || 0); }, 0) / total).toFixed(2)
-      : "$0";
-    var avgDist = total
-      ? (trips.reduce(function (s, t) { return s + (parseFloat(t.distance) || 0); }, 0) / total).toFixed(1) + " mi"
-      : "0 mi";
-    setZoneStatsEls(avgFare, avgDist, total);
+  // Zone stats: fetch from API when a zone is selected; else use filtered trips or zeros
+  function updateZoneStatsFromFilters(filters) {
+    var firstZoneId = (filters.selectedZones && filters.selectedZones[0]) ? filters.selectedZones[0] : null;
+    if (firstZoneId && window.fetchZoneStats) {
+      window.fetchZoneStats(firstZoneId)
+        .then(function (res) {
+          var rows = (res && res.data) || [];
+          var row = rows[0];
+          var total = row ? (row.total_trips || 0) : 0;
+          var avgFare = row && row.avg_fare != null ? "$" + Number(row.avg_fare).toFixed(2) : "$0";
+          var avgDist = row && row.avg_distance != null ? Number(row.avg_distance).toFixed(1) + " mi" : "0 mi";
+          setZoneStatsEls(avgFare, avgDist, total);
+        })
+        .catch(function () {
+          setZoneStatsEls("$0", "0 mi", 0);
+        });
+    } else {
+      var trips = lastChartData ? lastChartData.trips : [];
+      var zoneTrips = trips;
+      var selected = (filters.boroughs && filters.boroughs.length > 0) ? filters.boroughs : [];
+      if (selected.length > 0) {
+        zoneTrips = trips.filter(function (t) {
+          var pb = zoneIdToBorough[t.pickup_zone_id];
+          var db = zoneIdToBorough[t.dropoff_zone_id];
+          return selected.indexOf(pb) !== -1 || selected.indexOf(db) !== -1;
+        });
+      }
+      var total = zoneTrips.length;
+      var avgFare = total ? "$" + (zoneTrips.reduce(function (s, t) { return s + (t.fare || 0); }, 0) / total).toFixed(2) : "$0";
+      var avgDist = total ? (zoneTrips.reduce(function (s, t) { return s + (t.distance || 0); }, 0) / total).toFixed(1) + " mi" : "0 mi";
+      setZoneStatsEls(avgFare, avgDist, total);
+    }
   }
 
   function setZoneStatsEls(avgFare, avgDist, total) {
@@ -348,64 +454,6 @@
     }).join("");
   }
 
-  // Renders Previous / page numbers / Next below the trips table.
-  // Shows pages around the current page (window of 5), always shows first and last.
-  function renderPagination(page, totalPages, total) {
-    var container = document.getElementById("tripsPagination");
-    if (!container) return;
-    if (!totalPages || totalPages <= 1) {
-      container.innerHTML = "";
-      return;
-    }
-
-    var html = '<div class="pagination-info">Showing page ' + page + ' of ' + totalPages + ' (' + total + ' trips total)</div>';
-    html += '<div class="pagination-controls">';
-
-    // Previous button
-    html += '<button class="page-btn" ' + (page <= 1 ? "disabled" : "") + ' onclick="goToPage(' + (page - 1) + ')">← Prev</button>';
-
-    // Page number buttons — show up to 5 around current page
-    var start = Math.max(1, page - 2);
-    var end = Math.min(totalPages, page + 2);
-
-    if (start > 1) {
-      html += '<button class="page-btn" onclick="goToPage(1)">1</button>';
-      if (start > 2) html += '<span class="page-ellipsis">…</span>';
-    }
-    for (var p = start; p <= end; p++) {
-      html += '<button class="page-btn' + (p === page ? " page-btn--active" : "") + '" onclick="goToPage(' + p + ')">' + p + '</button>';
-    }
-    if (end < totalPages) {
-      if (end < totalPages - 1) html += '<span class="page-ellipsis">…</span>';
-      html += '<button class="page-btn" onclick="goToPage(' + totalPages + ')">' + totalPages + '</button>';
-    }
-
-    // Next button
-    html += '<button class="page-btn" ' + (page >= totalPages ? "disabled" : "") + ' onclick="goToPage(' + (page + 1) + ')">Next →</button>';
-
-    html += '</div>';
-    container.innerHTML = html;
-  }
-
-  // Called when a page button is clicked — fetches just that page of trips,
-  // updates table and pagination, leaves charts/heatmap/cards unchanged
-  window.goToPage = function (page) {
-    if (page < 1 || page > currentTotalPages) return;
-    currentPage = page;
-    window.fetchTrips(page, 50, currentFilters)
-      .then(function (res) {
-        var rawTrips = (res.data || []);
-        var trips = rawTrips.map(function (t) { return normalizeTrip(t, zoneLookup); });
-        var filtered = filterTrips(trips, currentFilters);
-        updateTable(filtered);
-        renderPagination(res.page, res.totalPages, res.total);
-        // Scroll table into view smoothly
-        var tableEl = document.querySelector(".table-section");
-        if (tableEl) tableEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      })
-      .catch(function () {});
-  };
-
   function bindTableSort() {
     document.querySelectorAll("#tripsTable th[data-sort]").forEach(function (th) {
       th.addEventListener("click", function () {
@@ -432,25 +480,40 @@
     endEl.max = maxDate;
   }
 
-
+  function getDateRangeFromTrips(trips) {
+    if (!trips || trips.length === 0) return null;
+    function dateStr(t) {
+      var raw = t.time || t.pickup_datetime || "";
+      return String(raw).slice(0, 10);
+    }
+    var first = dateStr(trips[0]);
+    if (!first) return null;
+    var minD = first;
+    var maxD = first;
+    for (var i = 1; i < trips.length; i++) {
+      var d = dateStr(trips[i]);
+      if (!d) continue;
+      if (d < minD) minD = d;
+      if (d > maxD) maxD = d;
+    }
+    return { minDate: minD, maxDate: maxD };
+  }
 
   function showLoading(show) {
     var el = document.getElementById("loadingOverlay");
     if (show) el.classList.remove("hidden"); else el.classList.add("hidden");
   }
 
-  // Load zones once on first call, reuse on every subsequent filter apply
+  // Load zones once and build lookups; populate zone dropdown
   function loadZonesAndLookups(cb) {
-    if (zonesLoaded || !window.fetchZones) {
-      cb();
-      return;
-    }
+    if (zonesLoaded || !window.fetchZones) { cb(); return; }
     window.fetchZones()
       .then(function (res) {
         var rows = res.data || res || [];
         zonesList = rows;
         zoneLookup = {};
         zoneIdToBorough = {};
+        zonesLoaded = true;
         rows.forEach(function (z) {
           var id = z.zone_id;
           var name = z.zone_name || z.borough || String(id);
@@ -458,7 +521,6 @@
           zoneIdToBorough[id] = z.borough || name;
         });
         populateZoneSelect(rows);
-        zonesLoaded = true;
         cb();
       })
       .catch(function () {
@@ -482,14 +544,30 @@
   function fetchData(filters, callback) {
     showLoading(true);
     loadZonesAndLookups(function () {
-
+      var hasApi = window.fetchTrips && window.fetchTopRoutes && window.fetchHeatMap && window.fetchTimeSeries && window.fetchCityOverview;
+      if (!hasApi) {
+        useMockData(filters, function (d) {
+          callback(d);
+          showLoading(false);
+        });
+        return;
+      }
       Promise.all([
         window.fetchTrips(1, 50, filters).catch(function () { return null; }),
         window.fetchTopRoutes(filters).catch(function () { return null; }),
         window.fetchHeatMap(filters).catch(function () { return null; }),
         window.fetchTimeSeries(filters).catch(function () { return null; }),
         window.fetchCityOverview().catch(function () { return null; }),
-        window.fetchFilteredStats ? window.fetchFilteredStats(filters).catch(function () { return null; }) : Promise.resolve(null)
+        // Only fetch filteredStats when filters are active; zone stats show zero when nothing selected
+        (function () {
+          var hasFilters = (filters.boroughs && filters.boroughs.length > 0) ||
+            (filters.selectedZones && filters.selectedZones.length > 0) ||
+            filters.startDate || filters.endDate ||
+            (filters.fareMin && filters.fareMin > 0) || filters.selectedTime;
+          return (hasFilters && window.fetchFilteredStats)
+            ? window.fetchFilteredStats(filters).catch(function () { return null; })
+            : Promise.resolve(null);
+        })()
       ]).then(function (results) {
         var tripsRes = results[0];
         var topRoutesRes = results[1];
@@ -497,37 +575,42 @@
         var timeSeriesRes = results[3];
         var cityOverviewRes = results[4];
         var filteredStatsRes = results[5];
-        if (!tripsRes || !topRoutesRes || !heatMapRes || !timeSeriesRes) {
-          if (window.handleError) window.handleError(new Error("Failed to fetch"));
-          showLoading(false);
+        var usedBackend = tripsRes && topRoutesRes && heatMapRes && timeSeriesRes;
+        if (!usedBackend) {
+          useMockData(filters, function (d) {
+            callback(d);
+            showLoading(false);
+          });
           return;
         }
         hideError();
         var rawTrips = (tripsRes.data || tripsRes) || [];
         var trips = rawTrips.map(function (t) { return normalizeTrip(t, zoneLookup); });
-        var filtered = filterTrips(trips, filters);
         var topRoutes = topRoutesFromApi(topRoutesRes, zoneLookup);
         var heatmapData = heatMapFromApi(heatMapRes);
         var timeSeries = timeSeriesFromApi(timeSeriesRes);
-        var dateRange = dateRangeFromTimeSeries(timeSeries);
-        if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
         var summary = cityOverviewFromApi(cityOverviewRes);
+        var filteredStats = filteredStatsRes ? (filteredStatsRes.data || filteredStatsRes) : null;
+        currentPage = tripsRes.page || 1;
+        currentTotalPages = tripsRes.totalPages || 1;
         callback({
-          trips: filtered,
+          trips: trips,
           topRoutes: topRoutes,
           timeSeries: timeSeries,
           heatmap: heatmapData,
           cityOverview: summary,
-          filteredStats: filteredStatsRes ? (filteredStatsRes.data || null) : null,
-          dataSource: "api",
-          page: tripsRes.page || 1,
-          totalPages: tripsRes.totalPages || 1,
-          total: tripsRes.total || 0
+          filteredStats: filteredStats,
+          total: tripsRes.total || 0,
+          page: currentPage,
+          totalPages: currentTotalPages,
+          dataSource: "api"
         });
         showLoading(false);
       }).catch(function () {
-        if (window.handleError) window.handleError(new Error("Failed to fetch"));
-        showLoading(false);
+        useMockData(filters, function (d) {
+          callback(d);
+          showLoading(false);
+        });
       });
     });
   }
@@ -569,57 +652,111 @@
     };
   }
 
+  function useMockData(filters, callback) {
+    setTimeout(function () {
+      var trips = generateMockTrips(400);
+      var filtered = filterTrips(trips, filters);
+      var topRoutes = buildTopRoutesFromTrips(filtered);
+      var timeSeries = buildTimeSeriesFromTrips(filtered);
+      var heatmapData = buildHeatmapData(filtered);
+      var dateRange = getDateRangeFromTrips(trips);
+      if (dateRange) setDateRange(dateRange.minDate, dateRange.maxDate);
+      callback({
+        trips: filtered,
+        topRoutes: topRoutes,
+        timeSeries: timeSeries,
+        heatmap: heatmapData,
+        dataSource: "mock"
+      });
+    }, 400);
+  }
 
+  function setDataSourceBadge(source) {
+    var el = document.getElementById("dataSourceBadge");
+    if (!el) return;
+    el.textContent = source === "api" ? "Live data" : "Demo data";
+    el.className = "data-source-badge " + (source === "api" ? "live" : "demo");
+  }
 
-  // Tracks current pagination state and the full-dataset stats
-  var currentPage = 1;
-  var currentTotalPages = 1;
-  var currentFilters = {};
-  var currentFilteredStats = null;
+  // Fetch just the trips table for a given page; charts/heatmap unchanged
+  function goToPage(page) {
+    currentPage = page;
+    window.fetchTrips(page, 50, currentFilters)
+      .then(function (res) {
+        var rawTrips = (res.data || res) || [];
+        var trips = rawTrips.map(function (t) { return normalizeTrip(t, zoneLookup); });
+        currentTotalPages = res.totalPages || currentTotalPages;
+        updateTable(trips);
+        renderPagination(page, currentTotalPages, res.total || 0);
+        var tableEl = document.getElementById("tripsTable");
+        if (tableEl) tableEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+      .catch(function () {});
+  }
+
+  function renderPagination(page, totalPages, total) {
+    var el = document.getElementById("tripsPagination");
+    if (!el) return;
+    if (totalPages <= 1) { el.innerHTML = ""; return; }
+
+    var html = "<div class='pagination-info'>Page " + page + " of " + totalPages + " (" + total + " trips)</div>";
+    html += "<div class='pagination-controls'>";
+
+    // Prev button
+    html += "<button class='page-btn'" + (page <= 1 ? " disabled" : "") + " onclick='goToPage(" + (page - 1) + ")'>&#8592; Prev</button>";
+
+    // Page numbers with ellipsis
+    function addBtn(p) {
+      if (p === page) {
+        html += "<button class='page-btn page-btn--active'>" + p + "</button>";
+      } else {
+        html += "<button class='page-btn' onclick='goToPage(" + p + ")'>" + p + "</button>";
+      }
+    }
+    if (totalPages <= 7) {
+      for (var p = 1; p <= totalPages; p++) addBtn(p);
+    } else {
+      addBtn(1);
+      if (page > 3) html += "<span class='page-ellipsis'>…</span>";
+      for (var p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) addBtn(p);
+      if (page < totalPages - 2) html += "<span class='page-ellipsis'>…</span>";
+      addBtn(totalPages);
+    }
+
+    // Next button
+    html += "<button class='page-btn'" + (page >= totalPages ? " disabled" : "") + " onclick='goToPage(" + (page + 1) + ")'>Next &#8594;</button>";
+    html += "</div>";
+    el.innerHTML = html;
+  }
+
+  // Expose goToPage globally so inline onclick handlers can reach it
+  window.goToPage = function (page) { goToPage(page); };
 
   function applyFiltersAndRefresh() {
-    currentPage = 1; // reset to first page whenever filters change
     currentFilters = getFilters();
-
-    var hasActiveFilters = (currentFilters.boroughs && currentFilters.boroughs.length > 0) ||
-      (currentFilters.selectedZones && currentFilters.selectedZones.length > 0) ||
-      currentFilters.startDate || currentFilters.endDate ||
-      (currentFilters.fareMin && currentFilters.fareMin > 0) ||
-      currentFilters.selectedTime;
-
+    currentPage = 1;
     fetchData(currentFilters, function (data) {
       lastChartData = data;
-      currentTotalPages = data.totalPages || 1;
-      currentFilteredStats = data.filteredStats || null;
-
-
-      // Summary cards + zone stats:
-      // filteredStats comes from /api/analytics/filtered-stats which runs COUNT+AVG
-      // over the FULL filtered dataset — not just the 50 trips on the current page.
-      // Falls back to cityOverview (no filters) or computing from the page's trips.
-      if (data.filteredStats) {
-        var fs = data.filteredStats;
-        var statsObj = {
-          totalTrips: fs.total_trips || 0,
-          avgFare: fs.avg_fare != null ? "$" + Number(fs.avg_fare).toFixed(2) : "$0",
-          avgDistance: fs.avg_distance != null ? Number(fs.avg_distance).toFixed(1) + " mi" : "0 mi"
-        };
-        if (window.updateCards) window.updateCards(statsObj);
-        else updateSummaryCards(data.trips);
-        setZoneStatsEls(statsObj.avgFare, statsObj.avgDistance, statsObj.totalTrips);
-      } else if (!hasActiveFilters && data.cityOverview) {
+      setDataSourceBadge(data.dataSource);
+      // Summary cards: always show city-wide totals — never change on filter
+      if (data.cityOverview) {
         if (window.updateCards) window.updateCards(data.cityOverview);
         else updateSummaryCards(data.trips);
-        updateZoneStats(data.trips);
-      } else {
-        updateSummaryCards(data.trips);
-        updateZoneStats(data.trips);
       }
-
+      // Zone statistics panel: shows filtered results when filters active, zeros when not
+      if (data.filteredStats) {
+        var fs = data.filteredStats;
+        var avgFare = fs.avg_fare != null ? "$" + Number(fs.avg_fare).toFixed(2) : "$0";
+        var avgDist = fs.avg_distance != null ? Number(fs.avg_distance).toFixed(1) + " mi" : "0 mi";
+        setZoneStatsEls(avgFare, avgDist, fs.total_trips || 0);
+      } else {
+        // No filters active — zone stats are blank
+        setZoneStatsEls("—", "—", 0);
+      }
       updateCharts(data.trips, data.topRoutes, data.timeSeries);
       updateHeatmap(data.heatmap);
       updateTable(data.trips);
-      renderPagination(data.page, data.totalPages, data.total);
+      renderPagination(data.page || 1, data.totalPages || 1, data.total || 0);
     });
   }
 
@@ -654,11 +791,29 @@
 
     function loadAnomalyChart() {
       if (window.fetchAnomalies) {
-        // Anomalies always show city-wide totals — no filters applied.
         window.fetchAnomalies(true)
-          .then(function (data) { renderAnomalyChart(data); })
-          .catch(function () { renderAnomalyChart({ summary: {} }); });
+          .then(function (data) {
+            renderAnomalyChart(data);
+          })
+          .catch(function () {
+            renderAnomalyChart(getMockAnomalyData());
+          });
+      } else {
+        renderAnomalyChart(getMockAnomalyData());
       }
+    }
+
+    function getMockAnomalyData() {
+      return {
+        summary: {
+          totalTripsAnalyzed: 400,
+          totalAnomalies: 12,
+          speedTooFast: 3,
+          speedTooSlow: 2,
+          fareTooHigh: 4,
+          fareTooLow: 3
+        }
+      };
     }
 
     function renderAnomalyChart(data) {
@@ -724,7 +879,6 @@
     bindTableSort();
     initAnomalyPanel();
 
-    // Date range is set from time-series data when we load (dates that exist in DB)
     // Initial load
     applyFiltersAndRefresh();
   }
