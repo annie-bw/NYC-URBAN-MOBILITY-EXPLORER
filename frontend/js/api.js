@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var API_BASE = "http://localhost:5000";
+  var API_BASE = "https://nyc-urban-mobility-explorer.onrender.com";
 
   // handle api connection issues
   function handleError(error) {
