@@ -145,3 +145,7 @@ Base URL: `https://nyc-urban-mobility-explorer.onrender.com/api`
 - **Frontend** — HTML, CSS, vanilla JavaScript, Chart.js
 - **Database** — CockroachDB (PostgreSQL-compatible)
 - **Hosting** — Render (backend + frontend), CockroachDB Cloud
+
+## Team Task Sheet
+
+https://docs.google.com/spreadsheets/d/191ep4r3dklFSkQ4HFk8b7ltgqmbTQ4XkpPc68KMtlRE/edit?usp=drivesdk
