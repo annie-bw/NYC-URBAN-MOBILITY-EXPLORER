@@ -103,8 +103,8 @@ NYC-URBAN-MOBILITY-EXPLORER/
 │   ├── indexes.sql              # Index creation SQL for query performance
 │   └── populate-db.py           # Python ETL for taxi data ingestion
 ├── docs/                       
-│   ├── architecture.md          # System/architecture overview
-│   ├── api.md                   # API specification / endpoints
+│   ├── architecture.jpeg         # System/architecture overview
+│   ├── backend_guide.md          # API specification / endpoints
 │   └── data-dictionary.md       # Data schema & field descriptions
 ├── tests/                       
 │   ├── test_api.cjs              
