@@ -1,6 +1,7 @@
 const { getAnomaliesData } = require("../services/anomalies.service");
 const { detectAnomalies } = require("../algorithms/anomalyDetector");
 
+
 const getAnomalies = async (req, res, next) => {
   try {
     const rawTrips = await getAnomaliesData();
@@ -11,6 +12,7 @@ const getAnomalies = async (req, res, next) => {
     res.status(500).json({ error: "Failed to detect anomalies" });
   }
 };
+
 
 module.exports = {
   getAnomalies,
