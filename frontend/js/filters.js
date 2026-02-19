@@ -1,6 +1,3 @@
-//  Filter panel: reads form values and exposes getFilterValues().
-//  Clear All resets the form.
-
 (function () {
   "use strict";
 
@@ -19,16 +16,27 @@
     var selectedZones = [];
     if (zoneSelect) {
       for (var i = 0; i < zoneSelect.options.length; i++) {
-        if (zoneSelect.options[i].selected) selectedZones.push(zoneSelect.options[i].value);
+        if (zoneSelect.options[i].selected)
+          selectedZones.push(zoneSelect.options[i].value);
       }
     }
     return {
-      startDate: document.getElementById("startDate") ? document.getElementById("startDate").value || null : null,
-      endDate: document.getElementById("endDate") ? document.getElementById("endDate").value || null : null,
+      startDate: document.getElementById("startDate")
+        ? document.getElementById("startDate").value || null
+        : null,
+      endDate: document.getElementById("endDate")
+        ? document.getElementById("endDate").value || null
+        : null,
       boroughs: boroughs,
       selectedZones: selectedZones,
-      fareMin: parseInt(document.getElementById("fareRange") ? document.getElementById("fareRange").value : 0, 10) || 0,
-      selectedTime: selectedTime
+      fareMin:
+        parseInt(
+          document.getElementById("fareRange")
+            ? document.getElementById("fareRange").value
+            : 0,
+          10,
+        ) || 0,
+      selectedTime: selectedTime,
     };
   }
 

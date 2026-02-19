@@ -96,21 +96,6 @@ const buildTripsQuery = (filters = {}) => {
     }
   }
 
-  // Zone ID filter
-  if (filters.zoneIds && filters.zoneIds.length > 0) {
-    const pickupPlaceholders = filters.zoneIds
-      .map(() => `${index++}`)
-      .join(", ");
-    filters.zoneIds.forEach((id) => values.push(id));
-
-    const dropoffPlaceholders = filters.zoneIds
-      .map(() => `${index++}`)
-      .join(", ");
-    filters.zoneIds.forEach((id) => values.push(id));
-
-    query += ` AND (t.pickup_zone_id IN (${pickupPlaceholders}) OR t.dropoff_zone_id IN (${dropoffPlaceholders}))`;
-  }
-
   return { query, values, index };
 };
 
