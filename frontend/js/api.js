@@ -48,10 +48,16 @@
           params.push("borough=" + encodeURIComponent(b));
         });
       }
-      if (filters.fareMin != null)
+      if (filters.fareMin != null && filters.fareMin > 0)
         params.push("fareMin=" + encodeURIComponent(filters.fareMin));
       if (filters.selectedTime)
         params.push("timeOfDay=" + encodeURIComponent(filters.selectedTime));
+      // zone_id sent as repeated param so backend receives an array
+      if (filters.selectedZones && filters.selectedZones.length) {
+        filters.selectedZones.forEach(function (id) {
+          params.push("zone_id=" + encodeURIComponent(id));
+        });
+      }
     }
     return params.length ? "?" + params.join("&") : "";
   }
@@ -75,19 +81,6 @@
       .catch(function (err) {
         handleError(err);
         throw err;
-      });
-  }
-
-  function fetchDateRange() {
-    var url = API_BASE + "/api/analytics/date-range";
-    return fetch(url)
-      .then(function (res) {
-        if (!res.ok) throw new Error("Request failed: " + res.status);
-        hideError();
-        return res.json();
-      })
-      .catch(function () {
-        return null;
       });
   }
 
@@ -126,8 +119,8 @@
   }
 
   //  Fetch top routes from GET /api/analytics/top-routes.
-  function fetchTopRoutes() {
-    return fetch(API_BASE + "/api/analytics/top-routes")
+  function fetchTopRoutes(filters) {
+    return fetch(API_BASE + "/api/analytics/top-routes" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
@@ -140,8 +133,8 @@
   }
 
   // Fetch heat map (borough by hour) from GET /api/analytics/heat-map.
-  function fetchHeatMap() {
-    return fetch(API_BASE + "/api/analytics/heat-map")
+  function fetchHeatMap(filters) {
+    return fetch(API_BASE + "/api/analytics/heat-map" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
@@ -153,9 +146,9 @@
       });
   }
 
-  //  Fetch daily trip counts from GET /api/analytics/time-series.S
-  function fetchTimeSeries() {
-    return fetch(API_BASE + "/api/analytics/time-series")
+  //  Fetch daily trip counts from GET /api/analytics/time-series.
+  function fetchTimeSeries(filters) {
+    return fetch(API_BASE + "/api/analytics/time-series" + buildQueryString(null, null, filters))
       .then(function (res) {
         if (!res.ok) throw new Error("Request failed: " + res.status);
         hideError();
@@ -199,15 +192,30 @@
       });
   }
 
+  // Fetch COUNT + AVG fare + AVG distance for the full filtered dataset (no pagination).
+  // Used by summary cards and zone stats so they show real totals, not just page-1 sample.
+  function fetchFilteredStats(filters) {
+    return fetch(API_BASE + "/api/analytics/filtered-stats" + buildQueryString(null, null, filters))
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        hideError();
+        return res.json();
+      })
+      .catch(function (err) {
+        handleError(err);
+        throw err;
+      });
+  }
+
   window.fetchTrips = fetchTrips;
   window.fetchZones = fetchZones;
-  window.fetchDateRange = fetchDateRange;
   window.fetchAnomalies = fetchAnomalies;
   window.fetchTopRoutes = fetchTopRoutes;
   window.fetchHeatMap = fetchHeatMap;
   window.fetchTimeSeries = fetchTimeSeries;
   window.fetchCityOverview = fetchCityOverview;
   window.fetchZoneStats = fetchZoneStats;
+  window.fetchFilteredStats = fetchFilteredStats;
   window.handleError = handleError;
   window.hideError = hideError;
 })();
