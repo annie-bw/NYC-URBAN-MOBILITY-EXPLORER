@@ -1,14 +1,11 @@
 const express = require("express");
 const analyticsService = require("../services/analytics.service");
 
-// Reads the standard filter params from req.query and returns a filters object.
-// Same shape as data.controller.js so both use identical filter parsing.
 function parseFilters(query) {
   let boroughs = query.borough;
   if (!boroughs) boroughs = [];
   else if (!Array.isArray(boroughs)) boroughs = [boroughs];
 
-  // zone_id comes as repeated param: ?zone_id=1&zone_id=42
   let zoneIds = query.zone_id;
   if (!zoneIds) zoneIds = [];
   else if (!Array.isArray(zoneIds)) zoneIds = [zoneIds];
@@ -18,8 +15,8 @@ function parseFilters(query) {
     boroughs,
     zoneIds,
     startDate: query.startDate || null,
-    endDate:   query.endDate   || null,
-    fare_min:  query.fareMin   ? parseFloat(query.fareMin) : null,
+    endDate: query.endDate || null,
+    fare_min: query.fareMin ? parseFloat(query.fareMin) : null,
     timeOfDay: query.timeOfDay || null,
   };
 }
@@ -43,7 +40,11 @@ const getHeatMap = async (req, res, next) => {
       if (!zonesMap[borough]) {
         zonesMap[borough] = { name: borough, hours: {} };
         for (let h = 0; h < 24; h++) {
-          zonesMap[borough].hours[h] = { trips: 0, passengers: 0, activityScore: 0 };
+          zonesMap[borough].hours[h] = {
+            trips: 0,
+            passengers: 0,
+            activityScore: 0,
+          };
         }
       }
       zonesMap[borough].hours[hour] = {
@@ -98,7 +99,9 @@ const getCityOverview = async (req, res, next) => {
 
 const getFilteredStats = async (req, res, next) => {
   try {
-    const stats = await analyticsService.getFilteredStats(parseFilters(req.query));
+    const stats = await analyticsService.getFilteredStats(
+      parseFilters(req.query),
+    );
     res.status(200).json({ success: true, data: stats });
   } catch (error) {
     next(error);

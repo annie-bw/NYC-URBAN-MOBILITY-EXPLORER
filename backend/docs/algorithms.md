@@ -1,146 +1,51 @@
 # Algorithms Analysis
 
-## 1. Selection Sort — Descending (`selectionSort.js`)
+## 1. Selection Sort (Descending)
 
-**What it does:** Finds the largest element in the unsorted part and swaps it to the front. Repeats until the whole array is sorted in descending order.
+This algorithm sorts a list of items by finding the biggest one and moving it to the front.
 
-**Helper:** `swap(arr, i, j)` — switches two elements in the array.
-
-**Pseudo-code:**
-```
-SWAP(arr, i, j):
-    temp = arr[i]
-    arr[i] = arr[j]
-    arr[j] = temp
-
-SELECTION_SORT(arr, key):
-    for i = 0 to arr.length - 2:
-        maxIndex = i
-        for j = i + 1 to arr.length - 1:
-            if arr[j][key] > arr[maxIndex][key]:
-                maxIndex = j
-        if maxIndex ≠ i:
-            SWAP(arr, i, maxIndex)
-    return arr
-```
-
-| | Complexity |
-|---|---|
-| **Time** | **O(n²)** — two nested loops, the inner loop shrinks by 1 each time |
-| **Space** | **O(1)** — sorts in-place, only uses a temp variable for swapping |
+- **Time complexity:** Slow. It takes more time as the list gets bigger because it has 2-level nestation. (O(n²))
+- **Space complexity:** Very efficient. It doesn't need extra memory to do the work. (O(1))
 
 ---
 
-## 2. Compute Mean & Std Dev (`compuStdDev.js`)
+## 2. Average and Spread (Mean & Std Dev)
 
-**What they do:**
-- `computeMean` — sums all values and divides by count.
-- `computeStdDev` — computes how spread out the values are from the mean.
+- **Mean:** Adds up all the numbers and divides by how many there are to find the average.
+- **Standard Deviation:** Calculates how much the numbers vary or "spread out" from that average.
 
-**Pseudo-code:**
-```
-COMPUTE_MEAN(values):
-    sum = 0
-    for each value: sum += value
-    return sum / count
-
-COMPUTE_STD_DEV(values, mean):
-    sumSquaredDiff = 0
-    for each value: sumSquaredDiff += (value - mean)²
-    variance = sumSquaredDiff / count
-    return sqrt(variance)
-```
-
-| | Complexity |
-|---|---|
-| **Time** | **O(n)** — single pass through the array each |
-| **Space** | **O(1)** — only a few variables, no extra arrays |
+- **Time complexity:** Fast. It just needs to look at each number once. (O(n))
+- **Space complexity:** Very efficient. It only remembers a few numbers at a time. (O(1))
 
 ---
 
-## 3. Anomaly Detector (`anomalyDetector.js`)
+## 3. Anomaly Detector
 
-### 3a. `detectSpeedAnomalies(trips)`
+This tool finds stranges or unusual trips by checking if their speed or fare is much higher or lower than the average.
 
-**What it does:** Finds trips with unusually high or low speed using the Z-Score method (flag if > 2 std devs from the mean).
+### 3a. Speed Anomalies
 
-**Pseudo-code:**
-```
-DETECT_SPEED_ANOMALIES(trips):
-    speeds = extract all trip speeds              → O(n)
-    mean   = COMPUTE_MEAN(speeds)                 → O(n)
-    stdDev = COMPUTE_STD_DEV(speeds, mean)        → O(n)
+It looks at the speed of all trips and flags ones that are way off from the normal speed.
 
-    anomalies = []
-    for each trip:                                → O(n)
-        zScore = (speed - mean) / stdDev
-        if |zScore| > 2 → add to anomalies
+- **Time complexity:** Fast for checking, but slows down a bit when as number of unusual trips increasess. (O(n + a²))
+- **Space complexity:** Uses a bit of memory to keep track of the speeds and the anomalies it finds. (O(n + a))
 
-    SELECTION_SORT anomalies by |zScore| desc     → O(a²)
-    return anomalies
-```
+### 3b. Fare Anomalies
 
-Let **n** = total trips, **a** = number of anomalies found (a ≤ n).
+It groups trips by where they started and checks for unusual prices within those specific areas.
 
-| | Complexity |
-|---|---|
-| **Time** | **O(n + a²)** — linear scan + selection sort on anomalies |
-| **Space** | **O(n + a)** — speeds array (n) + anomalies array (a) |
+- **Time complexity:** Similar to speed checking, it's fast but depends on how many anomalies are found. (O(n + a²))
+- **Space complexity:** Needs memory to group the trips and store the results. (O(n + a))
 
 ---
 
-### 3b. `detectFareAnomalies(trips)`
+## Summary
 
-**What it does:** Groups trips by pickup zone, then finds fares that are unusually high or low *within each zone*.
+| Function          | Speed  | Memory Usage |
+| ----------------- | ------ | ------------ |
+| `selectionSort`   | Slow   | Very Low     |
+| `computeMean`     | Fast   | Very Low     |
+| `computeStdDev`   | Fast   | Very Low     |
+| `detectAnomalies` | Fast\* | Moderate     |
 
-**Pseudo-code:**
-```
-DETECT_FARE_ANOMALIES(trips):
-    zoneGroups = group trips by pickup_zone_id    → O(n)
-
-    anomalies = []
-    for each zone with >= 10 trips:
-        fares  = extract fare values              → O(k)
-        mean   = COMPUTE_MEAN(fares)              → O(k)
-        stdDev = COMPUTE_STD_DEV(fares, mean)     → O(k)
-
-        for each trip in zone:                    → O(k)
-            zScore = (fare - mean) / stdDev
-            if |zScore| > 2 → add to anomalies
-
-    SELECTION_SORT anomalies by |zScore| desc     → O(a²)
-    return anomalies
-```
-
-Let **n** = total trips, **k** = trips in a zone, **a** = total anomalies.
-
-| | Complexity |
-|---|---|
-| **Time** | **O(n + a²)** — each trip processed once across all zones (Σk = n), plus sorting |
-| **Space** | **O(n + a)** — zone groups hold all n trips + anomalies array |
-
----
-
-### 3c. `detectAnomalies(trips)` — Main Function
-
-Runs both detectors and combines results.
-
-| | Complexity |
-|---|---|
-| **Time** | **O(n + a²)** — where a = total anomalies from both detectors |
-| **Space** | **O(n + a)** |
-
----
-
-## Summary Table
-
-| Function | Time | Space |
-|---|---|---|
-| `selectionSort` | O(n²) | O(1) |
-| `computeMean` | O(n) | O(1) |
-| `computeStdDev` | O(n) | O(1) |
-| `detectSpeedAnomalies` | O(n + a²) | O(n + a) |
-| `detectFareAnomalies` | O(n + a²) | O(n + a) |
-| `detectAnomalies` | O(n + a²) | O(n + a) |
-
-> **n** = number of trips, **a** = number of anomalies detected
+_\*Can be slower if a lot of anomalies are found._
