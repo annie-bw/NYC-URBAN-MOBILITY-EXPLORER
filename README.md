@@ -8,9 +8,9 @@ A fullstack dashboard for exploring New York City taxi trip data. Filter by boro
 
 Frontend: https://nyc-urban-mobility-explorer-frontend.onrender.com
 
-Backend API: https://nyc-urban-mobility-explorer.onrender.com
+Backend: https://nyc-urban-mobility-explorer.onrender.com
 
-First run the backend API, for the server to restart, then use the frontend url to see the results.
+First run the backend url, for the server to restart, then use the frontend url to see the results.
 
 > The backend is on Render's free tier so it sleeps after 15 minutes of inactivity. The first request after idle takes about 30–60 seconds to wake up — just give it a moment.
 
